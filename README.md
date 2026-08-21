@@ -11,6 +11,23 @@
 - 📔 家庭日志 / 备忘
 - …（规划中，持续补充）
 
+## 快速开始（本机）
+
+```bash
+# 1. 安装「家庭管家」preset（新会话选择器里可选）
+DSH_HOME=/root/dsh_rsc/.dsh bash scripts/install-preset.sh
+
+# 2. 在 Web GUI 新建会话，预设选「家庭管家」，然后直接说：
+#    "今天买西瓜花了10块"
+#    "昨天打车23"
+#    "这周花了多少？"
+#    或命令行直连：
+python3 scripts/ledger.py add --json '{"amount_cents":1000,"category":"餐饮","note":"今天买西瓜花了10块"}'
+python3 scripts/ledger.py weekly
+```
+
+数据统一在 `data/`（`WUAGE_DATA` 环境变量可改），迁移 = 拷走该目录。
+
 ## 现状
 
 - [x] 项目脚手架初始化（git）

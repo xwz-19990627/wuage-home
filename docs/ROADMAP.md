@@ -20,10 +20,10 @@
 - [x] 存储 MVP：SQLite + 文件，固定位置
 - [ ] 第一个模块：待定（上表 A–F 任选，或另提）
 
-## 技术栈草案（MVP）
+## 技术栈草案（MVP，复用 DSH 壳子）
 
-- Python 3.11+ / FastAPI（Web + API）
-- SQLite（Python 内置 sqlite3 或 SQLAlchemy）
-- DeepSeek API（OpenAI 兼容，V4 Flash）做 LLM 调用
-- 单页前端（原生 JS / 轻量框架），不引入构建链
-- 定时：APScheduler（简报、提醒、周报）
+- **内核/入口**：DSH（agent 循环、Web GUI、cron/任务看板）—— 不开发内核
+- **数据层**：SQLite（Python 内置 sqlite3）+ WUAGE_DATA 目录 —— 归 wuage-home 所有
+- **模块**：技能卡 = DSH skill/preset + 读写数据层的脚本
+- **LLM**：DeepSeek API（V4 Flash）—— 记账解析、周报生成由技能内调用
+- **定时**：任务看板 cron（周报、简报、提醒）

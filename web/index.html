@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wuage-home · 家庭账本</title>
+<style>
+  :root { --bg:#f7f7f5; --card:#fff; --line:#e5e3dd; --ink:#26241f; --sub:#8a867c; --accent:#b7791f; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:20px 14px 60px; }
+  h1 { font-size:20px; margin:4px 0 2px; }
+  .sub { color:var(--sub); font-size:12px; margin-bottom:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:14px; margin-bottom:14px; }
+  .card h2 { font-size:14px; margin:0 0 10px; color:var(--sub); font-weight:600; }
+  input, select { padding:7px 9px; border:1px solid var(--line); border-radius:7px;
+                  background:#fff; font-size:14px; color:var(--ink); }
+  input:focus, select:focus { outline:2px solid #ecd9b0; border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .row label { font-size:12px; color:var(--sub); }
+  button { border:0; border-radius:7px; padding:8px 14px; font-size:14px; cursor:pointer; }
+  .primary { background:var(--accent); color:#fff; }
+  .ghost { background:#f1efe9; color:#55503f; padding:5px 10px; font-size:12px; }
+  .danger { background:transparent; color:#c0392b; padding:5px 10px; font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--sub); font-weight:600; font-size:12px; }
+  td.num, th.num { text-align:right; }
+  .empty { color:var(--sub); text-align:center; padding:18px 0; }
+  .bar { display:flex; align-items:center; gap:8px; margin:4px 0; }
+  .bar .name { width:72px; font-size:12px; color:var(--ink); text-align:right; flex:none; }
+  .bar .track { flex:1; background:#f1efe9; border-radius:4px; height:14px; overflow:hidden; }
+  .bar .fill { height:100%; background:var(--accent); border-radius:4px; min-width:2px; }
+  .bar .val { width:120px; font-size:12px; color:var(--sub); flex:none; }
+  .total { font-size:26px; font-weight:700; margin:2px 0; }
+  .total small { font-size:13px; color:var(--sub); font-weight:400; }
+  .tag { display:inline-block; background:#f4ecda; color:#8a6420; border-radius:5px;
+         padding:0 7px; font-size:12px; }
+  .edit-row input, .edit-row select { padding:4px 6px; font-size:13px; }
+  @media (max-width:600px) { .row label { width:100%; margin-bottom:-4px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏠 wuage-home · 家庭账本</h1>
+  <div class="sub" id="subline">加载中…</div>
+
+  <div class="card">
+    <h2>记一笔</h2>
+    <div class="row">
+      <label>金额(元)</label>
+      <input id="f-amount" type="number" step="0.01" min="0.01" placeholder="10.00">
+      <label>日期</label>
+      <input id="f-date" type="date">
+      <label>类别</label>
+      <select id="f-category"></select>
+      <label>备注</label>
+      <input id="f-note" type="text" placeholder="今天买西瓜花了10块（可选）">
+      <button class="primary" id="btn-add">记一笔</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>本周汇总</h2>
+    <div id="weekly"></div>
+  </div>
+
+  <div class="card">
+    <h2>流水 <span style="float:right">
+      <select id="filt-cat"><option value="">全部类别</option></select>
+      <input id="filt-from" type="date" placeholder="起始">
+      ~ <input id="filt-to" type="date" placeholder="截止">
+      <button class="ghost" id="btn-reset">清空筛选</button>
+    </span></h2>
+    <table>
+      <thead><tr><th>日期</th><th>类别</th><th class="num">金额</th><th>备注</th><th>操作</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var CATS = [];
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function yuan(cents) { return (cents / 100).toFixed(2); }
+  function todayStr() {
+    var d = new Date();
+    var m = String(d.getMonth() + 1); if (m.length < 2) m = "0" + m;
+    var day = String(d.getDate()); if (day.length < 2) day = "0" + day;
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+  function fillSelect(sel, options, selected) {
+    sel.innerHTML = "";
+    options.forEach(function (o) {
+      var opt = document.createElement("option");
+      opt.value = o; opt.textContent = o;
+      if (o === selected) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  function loadMeta() {
+    return fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
+      CATS = h.categories || [];
+      fillSelect($("f-category"), CATS, "餐饮");
+      fillSelect($("filt-cat"), [""].concat(CATS), "");
+      $("subline").textContent = "数据库：" + h.db;
+    }).catch(function (e) {
+      $("subline").textContent = "无法连接后端：" + e;
+    });
+  }
+
+  function filters() {
+    var s = "?";
+    if ($("filt-cat").value) s += "category=" + encodeURIComponent($("filt-cat").value) + "&";
+    if ($("filt-from").value) s += "from=" + $("filt-from").value + "&";
+    if ($("filt-to").value) s += "to=" + $("filt-to").value + "&";
+    return s;
+  }
+
+  function renderTable(entries) {
+    var tbody = $("rows");
+    tbody.innerHTML = "";
+    if (!entries.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">还没有记录，来一笔吧</td></tr>';
+      return;
+    }
+    entries.forEach(function (r) {
+      var tr = document.createElement("tr");
+      tr.dataset.id = r.id;
+      tr.innerHTML =
+        "<td>" + esc(r.date) + "</td>" +
+        "<td><span class="tag">" + esc(r.category) + "</span></td>" +
+        "<td class="num">" + yuan(r.amount_cents) + "</td>" +
+        "<td>" + esc(r.note) + "</td>" +
+        "<td><button class="ghost" data-act="edit">改</button> " +
+        "<button class="danger" data-act="del">删</button></td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderWeekly(w) {
+    var el = $("weekly");
+    if (!w || !w.count) {
+      el.innerHTML = '<div class="empty">' + esc(w ? w.week_start + " ~ " + w.week_end : "") +
+        "本周还没有记账。给家人留个零花钱记录吧～</div>";
+      return;
+    }
+    var cats = Object.keys(w.by_category).sort(function (a, b) {
+      return w.by_category[b].total_cents - w.by_category[a].total_cents;
+    });
+    var max = Math.max.apply(null, cats.map(function (c) {
+      return w.by_category[c].total_cents;
+    }));
+    var html = '<div class="total">' + yuan(w.total_cents) +
+      ' <small>元 · ' + w.count + ' 笔 · ' + esc(w.week_start) + " ~ " + esc(w.week_end) + "</small></div>";
+    cats.forEach(function (c) {
+      var a = w.by_category[c];
+      var pct = Math.round(a.total_cents / max * 100);
+      html += '<div class="bar"><span class="name">' + esc(c) + "</span>" +
+        '<span class="track"><span class="fill" style="width:' + pct + '%"></span></span>' +
+        '<span class="val">' + yuan(a.total_cents) + " 元 · " + a.count + " 笔</span></div>";
+    });
+    el.innerHTML = html;
+  }
+
+  function refresh() {
+    fetch("/api/entries" + filters()).then(function (r) { return r.json(); })
+      .then(function (d) { renderTable(d.entries || []); })
+      .catch(function (e) { alert("加载流水失败：" + e); });
+    fetch("/api/weekly").then(function (r) { return r.json(); })
+      .then(renderWeekly)
+      .catch(function () {});
+  }
+
+  function addEntry() {
+    var amount = parseFloat($("f-amount").value);
+    if (!(amount > 0)) { alert("金额不对，填个大于 0 的数"); return; }
+    var body = {
+      amount_cents: Math.round(amount * 100),
+      date: $("f-date").value || undefined,
+      category: $("f-category").value,
+      note: $("f-note").value.trim()
+    };
+    fetch("/api/entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+    }).then(function (res) {
+      if (!res.ok) { alert("记账失败：" + res.d.error); return; }
+      $("f-amount").value = "";
+      $("f-note").value = "";
+      refresh();
+    }).catch(function (e) { alert("记账失败：" + e); });
+  }
+
+  function startEdit(tr) {
+    var id = tr.dataset.id;
+    var cat = tr.children[1].textContent.trim();
+    var note = tr.children[3].textContent;
+    tr.innerHTML = "";
+    var cell = document.createElement("td"); cell.colSpan = 5;
+    cell.className = "edit-row";
+    var sel = document.createElement("select");
+    fillSelect(sel, CATS, cat);
+    var inp = document.createElement("input"); inp.type = "text"; inp.value = note;
+    var save = document.createElement("button"); save.className = "primary"; save.textContent = "保存";
+    var cancel = document.createElement("button"); cancel.className = "ghost"; cancel.textContent = "取消";
+    cell.appendChild(sel); cell.appendChild(inp); cell.appendChild(save); cell.appendChild(cancel);
+    tr.appendChild(cell);
+    save.onclick = function () {
+      fetch("/api/entries/" + id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: sel.value, note: inp.value.trim() })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d.error) { alert("修改失败：" + d.error); }
+        refresh();
+      }).catch(function (e) { alert("修改失败：" + e); });
+    };
+    cancel.onclick = refresh;
+  }
+
+  document.addEventListener("click", function (ev) {
+    var btn = ev.target.closest ? ev.target.closest("button") : null;
+    if (!btn || !btn.dataset || !btn.dataset.act) return;
+    var tr = btn.closest("tr");
+    if (btn.dataset.act === "edit") { startEdit(tr); return; }
+    if (btn.dataset.act === "del") {
+      if (!confirm("删除这笔？")) return;
+      fetch("/api/entries/" + tr.dataset.id, { method: "DELETE" })
+        .then(function (r) { return r.json(); }).then(function (d) {
+          if (d.error) alert("删除失败：" + d.error);
+          refresh();
+        }).catch(function (e) { alert("删除失败：" + e); });
+      return;
+    }
+  });
+
+  $("btn-add").onclick = addEntry;
+  $("f-amount").addEventListener("keydown", function (e) { if (e.key === "Enter") addEntry(); });
+  $("btn-reset").onclick = function () {
+    $("filt-cat").value = ""; $("filt-from").value = ""; $("filt-to").value = "";
+    refresh();
+  };
+  ["filt-cat", "filt-from", "filt-to"].forEach(function (id) {
+    $(id).addEventListener("change", refresh);
+  });
+
+  $("f-date").value = todayStr();
+  loadMeta().then(refresh);
+})();
+</script>
+</body>
+</html>

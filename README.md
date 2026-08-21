@@ -24,6 +24,11 @@ DSH_HOME=/root/dsh_rsc/.dsh bash scripts/install-preset.sh
 #    或命令行直连：
 python3 scripts/ledger.py add --json '{"amount_cents":1000,"category":"餐饮","note":"今天买西瓜花了10块"}'
 python3 scripts/ledger.py weekly
+
+# 3. 起 Web 面板（查账/图表/按钮改账，零依赖）
+python3.11 scripts/web.py            # 打开 http://127.0.0.1:8000
+#    手机访问（局域网内可见数据）：
+#    python3.11 scripts/web.py --host 0.0.0.0
 ```
 
 数据统一在 `data/`（`WUAGE_DATA` 环境变量可改），迁移 = 拷走该目录。

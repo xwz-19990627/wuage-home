@@ -260,7 +260,14 @@ def add_category(conn, family_id, name):
     name = (name or "").strip()
     if not name:
         raise LedgerError("分类名不能为空")
-    if category_by_name(conn, family_id, name):
+    row = conn.execute("SELECT * FROM categories WHERE family_id=? AND name=?",
+                       (family_id, name)).fetchone()
+    if row is not None:
+        if row["is_archived"]:
+            # 同名软归档分类 → 复活（唯一约束仍占用，不能重复插入）
+            conn.execute("UPDATE categories SET is_archived=0, sort_order=999 WHERE id=?", (row["id"],))
+            conn.commit()
+            return row["id"]
         raise LedgerError("分类已存在：{}".format(name))
     cur = conn.execute(
         "INSERT INTO categories (family_id, name, type, is_system, sort_order) VALUES (?,?,'expense',0,999)",
@@ -554,6 +561,67 @@ def summary_data(conn, from_=None, to=None, category=None, member=None, kind="ex
     }
 
 
+
+def dashboard_data(conn, month_offset=0):
+    """首页仪表盘：本月/上月支出与环比、前5分类占比、近7日、成员当月支出。"""
+    today_d = datetime.date.today()
+    def shift_month(d, off):
+        y = d.year + (d.month - 1 + off) // 12
+        m = (d.month - 1 + off) % 12 + 1
+        return datetime.date(y, m, 1)
+    m_start = shift_month(today_d, month_offset)
+    if m_start.month == 12:
+        m_end_d = datetime.date(m_start.year + 1, 1, 1) - datetime.timedelta(days=1)
+    else:
+        m_end_d = datetime.date(m_start.year, m_start.month + 1, 1) - datetime.timedelta(days=1)
+    m_end = m_end_d.isoformat()
+    fam_id = ensure_seed(conn)["family_id"]
+    month_rows = list_entries(conn, from_=m_start.isoformat(), to=m_end, kind="expense")
+    prev_start = shift_month(today_d, month_offset - 1)
+    prev_end = (shift_month(today_d, month_offset) - datetime.timedelta(days=1)).isoformat()
+    prev_rows = list_entries(conn, from_=prev_start.isoformat(), to=prev_end, kind="expense")
+    month_total = sum(row["amount_cents"] for row in month_rows)
+    prev_total = sum(row["amount_cents"] for row in prev_rows)
+    change_pct = None
+    if prev_total > 0:
+        change_pct = round((month_total - prev_total) * 100.0 / prev_total, 1)
+    # 分类 TOP5 + 其他
+    agg = _aggregate(month_rows)
+    cats_sorted = sorted(agg.items(), key=lambda kv: -kv[1]["total_cents"])
+    top = cats_sorted[:5]
+    rest = sum(a["total_cents"] for _, a in cats_sorted[5:])
+    cat_share = [{"name": name, "total_cents": a["total_cents"], "count": a["count"]}
+                 for name, a in top]
+    if rest > 0:
+        cat_share.append({"name": "其他", "total_cents": rest, "count": sum(a["count"] for _, a in cats_sorted[5:])})
+    # 近 7 日
+    d7_start = (today_d - datetime.timedelta(days=6)).isoformat()
+    d7_rows = list_entries(conn, from_=d7_start, to=today_d.isoformat(), kind="expense")
+    by_day = {}
+    for row in d7_rows:
+        by_day[row["date"]] = by_day.get(row["date"], 0) + row["amount_cents"]
+    last7 = []
+    for i in range(6, -1, -1):
+        d = (today_d - datetime.timedelta(days=i)).isoformat()
+        last7.append({"date": d, "total_cents": by_day.get(d, 0)})
+    # 成员当月
+    member_spend = {}
+    for row in month_rows:
+        name = row.get("member") or "本人"
+        member_spend[name] = member_spend.get(name, 0) + row["amount_cents"]
+    members = []
+    for name, cents in member_spend.items():
+        members.append({"name": name, "total_cents": cents})
+    return {
+        "month": m_start.isoformat()[:7],
+        "month_total_cents": month_total,
+        "prev_total_cents": prev_total,
+        "change_pct": change_pct,
+        "count": len(month_rows),
+        "cat_share": cat_share,
+        "last7": last7,
+        "members": members,
+    }
 def weekly_data(conn):
     now = datetime.date.today()
     start = now - datetime.timedelta(days=now.weekday())

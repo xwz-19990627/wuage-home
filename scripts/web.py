@@ -113,7 +113,7 @@ class Handler(BaseHTTPRequestHandler):
             conn = L.connect()
             try:
                 fam_id = L.ensure_seed(conn)["family_id"]
-                cats = [c["name"] for c in L.list_categories(conn, fam_id)]
+                cats = L.list_categories(conn, fam_id)
             finally:
                 conn.close()
             self._json(200, {"categories": cats})
@@ -151,6 +151,18 @@ class Handler(BaseHTTPRequestHandler):
             conn = L.connect()
             try:
                 d = L.weekly_data(conn)
+            finally:
+                conn.close()
+            self._json(200, d)
+            return
+        if path == "/api/dashboard":
+            try:
+                offset = int(self._query().get("offset") or 0)
+            except ValueError:
+                offset = 0
+            conn = L.connect()
+            try:
+                d = L.dashboard_data(conn, month_offset=offset)
             finally:
                 conn.close()
             self._json(200, d)
@@ -224,6 +236,33 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(201, {"ok": True, "id": did})
             return
+        if path == "/api/categories" or path == "/api/members":
+            try:
+                body = self._read_body()
+            except (ValueError, json.JSONDecodeError) as e:
+                self._error(400, "bad body: {}".format(e))
+                return
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                if path == "/api/categories":
+                    if not body.get("name"):
+                        raise L.LedgerError("name required")
+                    cid = L.add_category(conn, fam_id, body["name"])
+                    result = {"ok": True, "id": cid}
+                else:
+                    if not body.get("name"):
+                        raise L.LedgerError("name required")
+                    mid = L.add_member(conn, fam_id, body["name"], body.get("relation"))
+                    result = {"ok": True, "id": mid}
+            except L.LedgerError as e:
+                conn.close()
+                self._error(400, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(201, result)
+            return
         if path != "/api/entries":
             self._error(404, "not found")
             return
@@ -244,6 +283,40 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── PATCH ──────────────────────────────────────────────────────────────
     def do_PATCH(self):
+        def _by_id(name_prefix, fn):
+            p = urlparse(self.path).path
+            if not p.startswith("/api/" + name_prefix + "/"):
+                return None
+            try:
+                rid = int(p.rsplit("/", 1)[1])
+            except ValueError:
+                return False
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                row = conn.execute("SELECT * FROM {} WHERE id=? AND family_id=?".format(name_prefix), (rid, fam_id)).fetchone()
+                if row is None:
+                    return False
+                try:
+                    body = self._read_body()
+                except (ValueError, json.JSONDecodeError) as e:
+                    raise L.LedgerError("bad body: {}".format(e))
+                if name_prefix == "categories":
+                    if not body.get("name"):
+                        raise L.LedgerError("name required")
+                    L.rename_category(conn, fam_id, rid, body["name"])
+                else:
+                    raise L.LedgerError("members 改名暂不支持")
+            except L.LedgerError as e:
+                conn.close()
+                self._error(400, str(e))
+                return True
+            finally:
+                conn.close()
+            self._json(200, {"ok": True})
+            return True
+        if _by_id("categories", None) is not None:
+            return
         m = ENTRY_RE.match(urlparse(self.path).path)
         if not m:
             self._error(404, "not found")
@@ -267,6 +340,36 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── DELETE ─────────────────────────────────────────────────────────────
     def do_DELETE(self):
+        def _del_by_id(name_prefix):
+            p = urlparse(self.path).path
+            if not p.startswith("/api/" + name_prefix + "/"):
+                return None
+            try:
+                rid = int(p.rsplit("/", 1)[1])
+            except ValueError:
+                return False
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                row = conn.execute("SELECT * FROM {} WHERE id=? AND family_id=?".format(name_prefix), (rid, fam_id)).fetchone()
+                if row is None:
+                    return False
+                if name_prefix == "categories":
+                    L.delete_category(conn, fam_id, row["name"])
+                else:
+                    L.delete_member(conn, fam_id, row["name"])
+            except L.LedgerError as e:
+                conn.close()
+                self._error(400, str(e))
+                return True
+            finally:
+                conn.close()
+            self._json(200, {"ok": True})
+            return True
+        if _del_by_id("categories") is not None:
+            return
+        if _del_by_id("members") is not None:
+            return
         if urlparse(self.path).path.startswith("/api/drafts/"):
             conn = L.connect()
             try:

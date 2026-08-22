@@ -57,4 +57,14 @@
 - **MVP 形态（比独立服务更小）**：数据层（ledger.db + 读写脚本）+ 记账技能卡（DSH skill/preset）+ 周报脚本；入口 = DSH Web GUI 对话。不再需要 FastAPI 服务与前端。
 - **备选路线**：若 DSH 耦合日后成为瓶颈，可过渡到独立 FastAPI 服务（技能卡 → HTTP API 是无痛的替换点）。
 
+### 6.1 中枢形态确认（2026-08-21 讨论）
+
+- 确认 **DSH = 家庭智能体中枢（brain）**，wuage-home = 业务内核（记忆/数据/技能）。
+- **否定“纯 API 解析”路线**：能力天花板低（只有解析，没有 agent 循环/工具/多轮/记忆），
+  不满足 harness 效果；解析、路由、多轮纠错、叙述都经中枢会话完成。
+- 否定自造 harness（LangGraph/Agents SDK）与 n8n/Dify 路线：重建轮子 / 工作流平台非所需。
+- 边界：**智能入中枢、事实入 wuage 数据层**；中枢扩展 = preset + skill + 插件 + 任务看板 cron。
+- 迁移：安装 DSH + 部署 wuage 仓库 + 拷贝 data/，整套体系可搬。
+
+
 

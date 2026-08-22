@@ -26,9 +26,9 @@ python3 scripts/ledger.py add --json '{"amount_cents":1000,"category":"餐饮","
 python3 scripts/ledger.py weekly
 
 # 3. 起 Web 面板（查账/图表/按钮改账，零依赖）
-python3.11 scripts/web.py            # 打开 http://127.0.0.1:8000
+python3.11 scripts/web.py --port 17623            # 打开 http://127.0.0.1:17623
 #    手机访问（局域网内可见数据）：
-#    python3.11 scripts/web.py --host 0.0.0.0
+#    python3.11 scripts/web.py --port 17623 --host 0.0.0.0
 ```
 
 数据统一在 `data/`（`WUAGE_DATA` 环境变量可改），迁移 = 拷走该目录。
@@ -43,7 +43,7 @@ python3.11 scripts/web.py            # 打开 http://127.0.0.1:8000
 ## 打包与启动（App）
 
 ```bash
-bash scripts/start-wuage.sh    # 启动面板并自动打开浏览器（http://127.0.0.1:8000）
+bash scripts/start-wuage.sh    # 启动面板并自动打开浏览器（http://127.0.0.1:17623）
 bash scripts/stop-wuage.sh     # 停止
 bash scripts/selftest.sh       # 验收/冒烟：API 回环检查
 bash scripts/package.sh        # 打包 → dist/wuage-home-v0.1.1.{zip,tar.gz}（不含 data/）

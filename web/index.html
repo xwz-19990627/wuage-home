@@ -30,6 +30,7 @@
           padding:5px 12px; border-radius:20px; font-size:13px; cursor:pointer; }
   .chip.on { background:var(--accent); border-color:var(--accent); color:#fff; }
   .mt { margin-top:10px; }
+  .hint { font-size:12px; color:var(--sub); margin:2px 0 0; }
   .metrics { display:flex; gap:26px; flex-wrap:wrap; margin:6px 0 12px; }
   .metrics .m .v { font-size:22px; font-weight:700; }
   .metrics .m .k { font-size:12px; color:var(--sub); }
@@ -44,33 +45,36 @@
   .bar { display:flex; align-items:center; gap:8px; margin:4px 0; }
   .bar .name { width:84px; font-size:12px; color:var(--ink); text-align:right; flex:none; }
   .bar .track { flex:1; background:#f1efe9; border-radius:4px; height:14px; overflow:hidden; }
-  .bar .fill { height:100%; background:var(--accent); border-radius:4px; min-width:2px; }
-  .bar .val { width:150px; font-size:12px; color:var(--sub); flex:none; text-align:right; }
+  .bar .fill { height:100%; border-radius:4px; min-width:3px; }
+  .bar .val { width:160px; font-size:12px; color:var(--sub); flex:none; text-align:right; }
   .tag { display:inline-block; background:#f4ecda; color:#8a6420; border-radius:5px;
          padding:0 7px; font-size:12px; }
   .edit-row input, .edit-row select { padding:4px 6px; font-size:13px; margin-right:6px; }
   .total-line { font-size:12px; color:var(--sub); margin:6px 0 0; text-align:right; }
   .foot { color:var(--sub); font-size:11px; text-align:center; margin-top:26px; }
+  #f-text { flex:1; min-width:300px; }
   @media (max-width:600px) { .row label { width:100%; margin-bottom:-4px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>🏠 wuage-home · 家庭账本<span class="ver" id="ver">v0.1.1</span></h1>
+  <h1>🏠 wuage-home · 家庭账本<span class="ver" id="ver">v0.1.3</span></h1>
   <div class="sub" id="subline">加载中…</div>
 
   <div class="card">
     <h2>记一笔</h2>
     <div class="row">
-      <label>金额(元)</label>
-      <input id="f-amount" type="number" step="0.01" min="0.01" placeholder="10.00">
-      <label>日期</label>
-      <input id="f-date" type="date">
-      <label>类别</label>
-      <select id="f-category"></select>
-      <label>备注</label>
-      <input id="f-note" type="text" placeholder="今天买西瓜花了10块（可选）">
-      <button class="primary" id="btn-add">记一笔</button>
+      <input id="f-text" type="text" placeholder="一句话记账，如：今天买西瓜花了10块（大模型自动分类，不用手填金额）">
+      <button class="primary" id="btn-parse">记一笔（智能）</button>
+      <button class="ghost" id="btn-toggle-manual">手动录入</button>
+    </div>
+    <div class="hint" id="parse-hint"></div>
+    <div class="row mt" id="manual-box" style="display:none">
+      <label>金额(元)</label><input id="f-amount" type="number" step="0.01" min="0.01" placeholder="10.00">
+      <label>日期</label><input id="f-date" type="date">
+      <label>类别</label><select id="f-category"></select>
+      <label>备注</label><input id="f-note" type="text">
+      <button class="primary" id="btn-add">记一笔（手动）</button>
     </div>
   </div>
 
@@ -106,7 +110,7 @@
     <div class="total-line" id="ledger-total"></div>
   </div>
 
-  <div class="foot">wuage-home · v0.1.1 · 数据存于本机 data/ 目录，可迁移</div>
+  <div class="foot">wuage-home · v0.1.3 · 数据存于本机 data/ 目录，可迁移</div>
 </div>
 
 <script>
@@ -115,6 +119,7 @@
   var CATS = [];
   var RANGE = "week";
   var TAB = "cat";
+  var COLORS = ["#b7791f","#4a6fa5","#2f7d5e","#c0565a","#8b5e9e","#0e9aa7","#d97706","#a5678f","#6b7280"];
   var $ = function (id) { return document.getElementById(id); };
 
   function esc(s) {
@@ -135,6 +140,10 @@
     var wd = x.getDay();
     x.setDate(x.getDate() - (wd === 0 ? 6 : wd - 1));
     return x;
+  }
+  function catColor(cat) {
+    var i = CATS.indexOf(cat);
+    return COLORS[i >= 0 ? i % COLORS.length : COLORS.length - 1];
   }
 
   function fillSelect(sel, options, selected) {
@@ -158,7 +167,58 @@
     });
   }
 
-  // 分析
+  // 一句话智能记账（大模型解析归类，无需手填金额）
+  function smartAdd() {
+    var text = $("f-text").value.trim();
+    if (!text) {
+      $("parse-hint").textContent = "先输入一句话，比如：今天买西瓜花了10块";
+      return;
+    }
+    $("parse-hint").textContent = "🤔 大模型解析中…";
+    fetch("api/parse", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text })
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+    }).then(function (res) {
+      if (!res.ok) {
+        $("parse-hint").textContent = "❌ " + (res.d.error || "解析失败");
+        return;
+      }
+      var d = res.d;
+      $("parse-hint").textContent = "✅ 已记：[" + d.category + "] " + yuan(d.amount_cents) +
+        " 元 · " + d.date + "（记错了可去流水里点“改”）";
+      $("f-text").value = "";
+      refresh();
+    }).catch(function (e) { $("parse-hint").textContent = "❌ 解析失败：" + e; });
+  }
+
+  // 手动记账
+  function manualAdd() {
+    var amount = parseFloat($("f-amount").value);
+    if (!(amount > 0)) { alert("金额不对，填个大于 0 的数"); return; }
+    var body = {
+      amount_cents: Math.round(amount * 100),
+      date: $("f-date").value || undefined,
+      category: $("f-category").value,
+      note: $("f-note").value.trim()
+    };
+    fetch("api/entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+    }).then(function (res) {
+      if (!res.ok) { alert("记账失败：" + res.d.error); return; }
+      $("f-amount").value = "";
+      $("f-note").value = "";
+      refresh();
+    }).catch(function (e) { alert("记账失败：" + e); });
+  }
+
+  // 分析：占比百分比 + 每项不同颜色
   function rangeDates() {
     var t = new Date();
     if (RANGE === "week") return { from: fmt(mondayOf(t)), to: fmt(t) };
@@ -166,6 +226,16 @@
     if (RANGE === "30d") return { from: fmt(addDays(t, -29)), to: fmt(t) };
     return { from: $("r-from").value || fmt(addDays(t, -29)),
              to: $("r-to").value || fmt(t) };
+  }
+
+  function barList(rows) {
+    var html = "";
+    rows.forEach(function (r) {
+      html += '<div class="bar"><span class="name">' + esc(r.name) + '</span>' +
+        '<span class="track"><span class="fill" style="width:' + r.pct + '%;background:' + r.color + '"></span></span>' +
+        '<span class="val">' + r.label + '</span></div>';
+    });
+    return html;
   }
 
   function renderAnalysis(entries) {
@@ -179,7 +249,7 @@
       '<div class="m"><div class="v">' + entries.length + '</div><div class="k">笔数</div></div>' +
       '<div class="m"><div class="v">' + yuan(Math.round(avg)) + '</div><div class="k">日均(元)</div></div>';
 
-    if (!entries.length) {
+    if (!entries.length || total <= 0) {
       $("analysis").innerHTML = '<div class="empty">该区间无记录</div>';
       return;
     }
@@ -190,12 +260,10 @@
         a.total += r.amount_cents; a.count += 1; agg[r.category] = a;
       });
       var cats = Object.keys(agg).sort(function (a, b) { return agg[b].total - agg[a].total; });
-      var max = Math.max.apply(null, cats.map(function (c) { return agg[c].total; }));
       var rows = cats.map(function (c) {
         var a = agg[c];
-        return { name: c, pct: Math.round(a.total / max * 100),
-                 label: yuan(a.total) + " 元 · " + a.count + " 笔 · " +
-                        Math.round(a.total / total * 100) + "%" };
+        return { name: c, color: catColor(c), pct: Math.round(a.total / total * 100),
+                 label: yuan(a.total) + ' 元 · ' + a.count + ' 笔 · ' + Math.round(a.total / total * 100) + '%' };
       });
       $("analysis").innerHTML = barList(rows);
     } else {
@@ -203,23 +271,12 @@
       entries.forEach(function (r) { byDay[r.date] = (byDay[r.date] || 0) + r.amount_cents; });
       var daysArr = Object.keys(byDay).sort();
       if (daysArr.length > 60) daysArr = daysArr.slice(daysArr.length - 60);
-      var dmax = Math.max.apply(null, daysArr.map(function (d) { return byDay[d]; }));
-      var drows = daysArr.map(function (d) {
-        return { name: d, pct: Math.round(byDay[d] / dmax * 100),
-                 label: yuan(byDay[d]) + " 元" };
+      var drows = daysArr.map(function (d, i) {
+        return { name: d, color: COLORS[i % COLORS.length], pct: Math.round(byDay[d] / total * 100),
+                 label: yuan(byDay[d]) + ' 元 · ' + Math.round(byDay[d] / total * 100) + '%' };
       });
       $("analysis").innerHTML = barList(drows);
     }
-  }
-
-  function barList(rows) {
-    var html = "";
-    rows.forEach(function (r) {
-      html += '<div class="bar"><span class="name">' + esc(r.name) + "</span>" +
-        '<span class="track"><span class="fill" style="width:' + r.pct + '%"></span></span>' +
-        '<span class="val">' + r.label + "</span></div>";
-    });
-    return html;
   }
 
   function loadAnalysis() {
@@ -228,7 +285,7 @@
     fetch("api/entries?from=" + r.from + "&to=" + r.to)
       .then(function (res) { return res.json(); })
       .then(function (d) { renderAnalysis(d.entries || []); })
-      .catch(function (e) { $("analysis").innerHTML = '<div class="empty">加载失败：' + esc(e) + "</div>"; });
+      .catch(function (e) { $("analysis").innerHTML = '<div class="empty">加载失败：' + esc(e) + '</div>'; });
   }
 
   // 流水
@@ -255,11 +312,11 @@
       tr.dataset.id = r.id;
       tr.innerHTML =
         "<td>" + esc(r.date) + "</td>" +
-        "<td><span class=\"tag\">" + esc(r.category) + "</span></td>" +
-        "<td class=\"num\">" + yuan(r.amount_cents) + "</td>" +
+        "<td><span class='tag'>" + esc(r.category) + "</span></td>" +
+        "<td class='num'>" + yuan(r.amount_cents) + "</td>" +
         "<td>" + esc(r.note) + "</td>" +
-        "<td><button class=\"ghost\" data-act=\"edit\">改</button> " +
-        "<button class=\"danger\" data-act=\"del\">删</button></td>";
+        "<td><button class='ghost' data-act='edit'>改</button> " +
+        "<button class='danger' data-act='del'>删</button></td>";
       tbody.appendChild(tr);
     });
   }
@@ -271,31 +328,7 @@
     loadAnalysis();
   }
 
-  // 记一笔
-  function addEntry() {
-    var amount = parseFloat($("f-amount").value);
-    if (!(amount > 0)) { alert("金额不对，填个大于 0 的数"); return; }
-    var body = {
-      amount_cents: Math.round(amount * 100),
-      date: $("f-date").value || undefined,
-      category: $("f-category").value,
-      note: $("f-note").value.trim()
-    };
-    fetch("api/entries", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    }).then(function (r) {
-      return r.json().then(function (d) { return { ok: r.ok, d: d }; });
-    }).then(function (res) {
-      if (!res.ok) { alert("记账失败：" + res.d.error); return; }
-      $("f-amount").value = "";
-      $("f-note").value = "";
-      refresh();
-    }).catch(function (e) { alert("记账失败：" + e); });
-  }
-
-  // 行内编辑（金额/日期/类别/备注）
+  // 行内编辑
   function startEdit(tr) {
     var id = tr.dataset.id;
     var date = tr.children[0].textContent.trim();
@@ -305,7 +338,6 @@
     tr.innerHTML = "";
     var cell = document.createElement("td"); cell.colSpan = 5;
     cell.className = "edit-row";
-
     var d = document.createElement("input"); d.type = "date"; d.value = date;
     var sel = document.createElement("select");
     fillSelect(sel, CATS, cat);
@@ -315,11 +347,9 @@
     n.style.width = "180px";
     var save = document.createElement("button"); save.className = "primary"; save.textContent = "保存";
     var cancel = document.createElement("button"); cancel.className = "ghost"; cancel.textContent = "取消";
-
     cell.appendChild(d); cell.appendChild(sel); cell.appendChild(a);
     cell.appendChild(n); cell.appendChild(save); cell.appendChild(cancel);
     tr.appendChild(cell);
-
     save.onclick = function () {
       var amt = parseFloat(a.value);
       if (!(amt > 0)) { alert("金额不对"); return; }
@@ -370,8 +400,14 @@
     if (btn.id === "tab-cat" || btn.id === "tab-day") loadAnalysis();
   });
 
-  $("btn-add").onclick = addEntry;
-  $("f-amount").addEventListener("keydown", function (e) { if (e.key === "Enter") addEntry(); });
+  $("btn-parse").onclick = smartAdd;
+  $("f-text").addEventListener("keydown", function (e) { if (e.key === "Enter") smartAdd(); });
+  $("btn-add").onclick = manualAdd;
+  $("f-amount").addEventListener("keydown", function (e) { if (e.key === "Enter") manualAdd(); });
+  $("btn-toggle-manual").onclick = function () {
+    var box = $("manual-box");
+    box.style.display = box.style.display === "none" ? "" : "none";
+  };
   $("r-from").addEventListener("change", function () { if (RANGE === "custom") loadAnalysis(); });
   $("r-to").addEventListener("change", function () { if (RANGE === "custom") loadAnalysis(); });
   $("btn-reset").onclick = function () {

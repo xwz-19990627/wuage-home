@@ -2,7 +2,7 @@
 # wuage-home self-test：验收/升级冒烟用的 API 回环检查
 # 用法: bash scripts/selftest.sh [BASE_URL]
 set -euo pipefail
-BASE="${1:-http://127.0.0.1:8000}"
+BASE="${1:-http://127.0.0.1:17623}"
 echo "== health =="
 curl -sf "$BASE/api/health" | head -c 120; echo
 echo "== categories =="

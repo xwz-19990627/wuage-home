@@ -2,7 +2,7 @@
 """wuage-home web panel — 家庭账本 Web 面板（Python 标准库自托管，零第三方依赖）。
 
 启动：
-  python3 scripts/web.py                    # 默认 127.0.0.1:8000（仅本机）
+  python3 scripts/web.py --port 17623        # 默认 127.0.0.1:17623（仅本机）
   python3 scripts/web.py --host 0.0.0.0     # 局域网可访问（注意：局域网内可见数据）
 
 环境变量：WUAGE_DATA 数据目录；WUAGE_WEB_HOST / WUAGE_WEB_PORT。
@@ -28,6 +28,7 @@ from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ledger as L
+import parse as P
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_PATH = os.path.join(REPO_ROOT, "web", "index.html")
@@ -138,7 +139,36 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── POST ───────────────────────────────────────────────────────────────
     def do_POST(self):
-        if urlparse(self.path).path != "/api/entries":
+        path = urlparse(self.path).path
+        if path == "/api/parse":
+            try:
+                body = self._read_body()
+            except (ValueError, json.JSONDecodeError) as e:
+                self._error(400, "bad body: {}".format(e))
+                return
+            text = body.get("text")
+            if not text or not isinstance(text, str) or not text.strip():
+                self._error(400, "text required")
+                return
+            try:
+                parsed = P.parse_text(text.strip())
+            except Exception as e:  # noqa: BLE001 — LLM/网络/解析错误
+                self._error(502, "解析失败：{}".format(e))
+                return
+            if int(parsed.get("amount_cents") or 0) <= 0:
+                self._error(422, "没听出具体金额，请带上金额再说，如：今天买西瓜花了10块")
+                return
+            conn = L.connect()
+            try:
+                row = L.add_record(conn, parsed)
+            except L.LedgerError as e:
+                self._error(400, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(201, row)
+            return
+        if path != "/api/entries":
             self._error(404, "not found")
             return
         try:

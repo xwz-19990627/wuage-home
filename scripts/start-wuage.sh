@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# 启动 wuage-home 家庭账本 App（默认仅本机 127.0.0.1:8000）
+# 启动 wuage-home 家庭账本 App（默认仅本机 127.0.0.1:17623）
 # 手机访问：WUAGE_WEB_HOST=0.0.0.0 bash scripts/start-wuage.sh
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 HOST="${WUAGE_WEB_HOST:-127.0.0.1}"
-PORT="${WUAGE_WEB_PORT:-8000}"
+PORT="${WUAGE_WEB_PORT:-17623}"
 PY=""
 for c in python3.11 python3; do
   if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi

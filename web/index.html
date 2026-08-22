@@ -148,7 +148,7 @@
   }
 
   function loadMeta() {
-    return fetch("/api/health").then(function (r) { return r.json(); }).then(function (h) {
+    return fetch("api/health").then(function (r) { return r.json(); }).then(function (h) {
       CATS = h.categories || [];
       fillSelect($("f-category"), CATS, "餐饮");
       fillSelect($("filt-cat"), [""].concat(CATS), "");
@@ -225,7 +225,7 @@
   function loadAnalysis() {
     var r = rangeDates();
     $("r-from").value = r.from; $("r-to").value = r.to;
-    fetch("/api/entries?from=" + r.from + "&to=" + r.to)
+    fetch("api/entries?from=" + r.from + "&to=" + r.to)
       .then(function (res) { return res.json(); })
       .then(function (d) { renderAnalysis(d.entries || []); })
       .catch(function (e) { $("analysis").innerHTML = '<div class="empty">加载失败：' + esc(e) + "</div>"; });
@@ -265,7 +265,7 @@
   }
 
   function refresh() {
-    fetch("/api/entries" + ledgerQuery()).then(function (r) { return r.json(); })
+    fetch("api/entries" + ledgerQuery()).then(function (r) { return r.json(); })
       .then(function (d) { renderTable(d.entries || []); })
       .catch(function (e) { alert("加载流水失败：" + e); });
     loadAnalysis();
@@ -281,7 +281,7 @@
       category: $("f-category").value,
       note: $("f-note").value.trim()
     };
-    fetch("/api/entries", {
+    fetch("api/entries", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
@@ -325,7 +325,7 @@
       if (!(amt > 0)) { alert("金额不对"); return; }
       var body = { category: sel.value, note: n.value.trim(), date: d.value,
                    amount_cents: Math.round(amt * 100) };
-      fetch("/api/entries/" + id, {
+      fetch("api/entries/" + id, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body)
@@ -345,7 +345,7 @@
     if (btn.dataset.act === "del") {
       var tr = btn.closest("tr");
       if (!confirm("删除这笔？")) return;
-      fetch("/api/entries/" + tr.dataset.id, { method: "DELETE" })
+      fetch("api/entries/" + tr.dataset.id, { method: "DELETE" })
         .then(function (r) { return r.json(); }).then(function (d) {
           if (d.error) alert("删除失败：" + d.error);
           refresh();

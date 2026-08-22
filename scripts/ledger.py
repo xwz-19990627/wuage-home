@@ -570,11 +570,10 @@ def dashboard_data(conn, month_offset=0):
         m = (d.month - 1 + off) % 12 + 1
         return datetime.date(y, m, 1)
     m_start = shift_month(today_d, month_offset)
-    if m_start.month == 12:
-        m_end_d = datetime.date(m_start.year + 1, 1, 1) - datetime.timedelta(days=1)
-    else:
-        m_end_d = datetime.date(m_start.year, m_start.month + 1, 1) - datetime.timedelta(days=1)
+    next_m = shift_month(today_d, month_offset + 1)
+    m_end_d = next_m - datetime.timedelta(days=1)
     m_end = m_end_d.isoformat()
+    is_current = (month_offset == 0)
     fam_id = ensure_seed(conn)["family_id"]
     month_rows = list_entries(conn, from_=m_start.isoformat(), to=m_end, kind="expense")
     prev_start = shift_month(today_d, month_offset - 1)
@@ -585,6 +584,14 @@ def dashboard_data(conn, month_offset=0):
     change_pct = None
     if prev_total > 0:
         change_pct = round((month_total - prev_total) * 100.0 / prev_total, 1)
+    # 同比：较去年同期同月
+    ly_start = shift_month(today_d, month_offset - 12)
+    ly_end = (shift_month(today_d, month_offset - 11) - datetime.timedelta(days=1)).isoformat()
+    ly_rows = list_entries(conn, from_=ly_start.isoformat(), to=ly_end, kind="expense")
+    ly_total = sum(row["amount_cents"] for row in ly_rows)
+    yoy_pct = None
+    if ly_total > 0:
+        yoy_pct = round((month_total - ly_total) * 100.0 / ly_total, 1)
     # 分类 TOP5 + 其他
     agg = _aggregate(month_rows)
     cats_sorted = sorted(agg.items(), key=lambda kv: -kv[1]["total_cents"])
@@ -594,16 +601,26 @@ def dashboard_data(conn, month_offset=0):
                  for name, a in top]
     if rest > 0:
         cat_share.append({"name": "其他", "total_cents": rest, "count": sum(a["count"] for _, a in cats_sorted[5:])})
-    # 近 7 日
-    d7_start = (today_d - datetime.timedelta(days=6)).isoformat()
-    d7_rows = list_entries(conn, from_=d7_start, to=today_d.isoformat(), kind="expense")
+    # 近 7 日（窗口严格落在所选月份内，且不超过今天）
+    win_end = min(today_d, m_end_d) if is_current else m_end_d
+    win_start = max(m_start, win_end - datetime.timedelta(days=6))
+    d7_rows = list_entries(conn, from_=win_start.isoformat(),
+                          to=win_end.isoformat(), kind="expense")
     by_day = {}
     for row in d7_rows:
-        by_day[row["date"]] = by_day.get(row["date"], 0) + row["amount_cents"]
+        # 严格按 date 字段二次过滤，防止跨出所选月
+        if win_start.isoformat() <= row["date"] <= win_end.isoformat():
+            by_day[row["date"]] = by_day.get(row["date"], 0) + row["amount_cents"]
     last7 = []
-    for i in range(6, -1, -1):
-        d = (today_d - datetime.timedelta(days=i)).isoformat()
-        last7.append({"date": d, "total_cents": by_day.get(d, 0)})
+    d = win_start
+    while d <= win_end:
+        last7.append({"date": d.isoformat(), "total_cents": by_day.get(d.isoformat(), 0)})
+        d += datetime.timedelta(days=1)
+    days_in_month = (next_m - m_start).days
+    if is_current:
+        days_elapsed = max(1, (today_d - m_start).days + 1)
+    else:
+        days_elapsed = days_in_month
     # 成员当月
     member_spend = {}
     for row in month_rows:
@@ -620,6 +637,13 @@ def dashboard_data(conn, month_offset=0):
         "count": len(month_rows),
         "cat_share": cat_share,
         "last7": last7,
+        "last7_from": win_start.isoformat(),
+        "last7_to": win_end.isoformat(),
+        "days_in_month": days_in_month,
+        "days_elapsed": days_elapsed,
+        "last_year_month": ly_start.isoformat()[:7],
+        "last_year_total_cents": ly_total,
+        "yoy_pct": yoy_pct,
         "members": members,
     }
 def weekly_data(conn):

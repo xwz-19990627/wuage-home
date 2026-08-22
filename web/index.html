@@ -13,14 +13,19 @@
   .ver { color:var(--sub); font-size:11px; margin-left:6px; }
   .card { background:var(--card); border-radius:20px; box-shadow:0 2px 10px rgba(43,38,32,.05); padding:14px; margin:12px 0; }
   .card h2 { font-size:13px; color:var(--sub); font-weight:600; margin:0 0 8px; }
-  .big { font-size:30px; font-weight:800; margin:2px 0; }
-  .big small { font-size:13px; color:var(--sub); font-weight:400; }
-  .delta { font-size:12px; color:var(--sub); }
-  .delta.up { color:var(--red); } .delta.down { color:var(--green); }
+  .big { font-size:36px; font-weight:900; margin:4px 0 2px; letter-spacing:.5px; font-variant-numeric:tabular-nums; }
+  .big small { font-size:14px; color:var(--sub); font-weight:400; margin-left:2px; }
+  .meta-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; font-size:12px; color:var(--sub); margin:2px 0 0; }
+  .d-avg b { color:#B7791F; font-size:15px; }
+  .cmp { display:inline-block; border-radius:999px; padding:2px 10px; font-size:12px; background:#F1EBDF; color:#6B624C; }
+  .cmp.up { background:#FBE3E0; color:#C0392B; }
+  .cmp.down { background:#DFF2E8; color:#1E7A4F; }
+  .cmp i { font-style:normal; opacity:.7; }
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   input, select { padding:8px 10px; border:1px solid var(--line); border-radius:12px; background:#fff; font-size:14px; color:var(--ink); }
   input:focus, select:focus { outline:2px solid #F3E0BE; }
   button { border:0; border-radius:12px; padding:9px 14px; font-size:14px; cursor:pointer; }
+  button:active { transform:scale(.97); }
   .primary { background:var(--accent); color:#fff; }
   .ghost { background:#F1EBDF; color:#6B624C; }
   .danger { background:transparent; color:var(--red); }
@@ -30,56 +35,57 @@
   td.num { text-align:right; }
   .amt-out { color:var(--red); font-weight:700; } .amt-in { color:var(--green); font-weight:700; }
   .tag { display:inline-block; background:#F6EBD7; color:#9A6A1E; border-radius:6px; padding:0 7px; font-size:12px; }
+  .pill { display:inline-block; border-radius:999px; padding:2px 10px; font-size:12px; font-weight:600; white-space:nowrap; }
   .empty { color:var(--sub); text-align:center; padding:18px 0; }
-  .bar { display:flex; align-items:center; gap:6px; margin:5px 0; }
-  .bar .nm { width:60px; font-size:12px; text-align:right; color:var(--sub); flex:none; }
-  .bar .tr { flex:1; background:#F4EFE4; border-radius:5px; height:12px; overflow:hidden; }
-  .bar .fl { display:block; height:100%; background:var(--accent); border-radius:5px; min-width:3px; }
-  .bar .vl { width:96px; font-size:11px; color:var(--sub); }
-  .pie { width:130px; height:130px; border-radius:50%; margin:4px auto; }
-  .legend { font-size:12px; color:var(--sub); margin-top:8px; }
+  .empty-guide { text-align:center; padding:18px 0; color:var(--sub); }
+  .eg-ico { font-size:36px; margin-bottom:6px; }
+  .pie { width:150px; height:150px; border-radius:50%; margin:4px auto; }
+  .legend { font-size:12px; color:var(--sub); margin-top:8px; display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; }
   .legend b { color:var(--ink); }
   #tabbar { position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); display:flex; z-index:9; }
-  #tabbar button { flex:1; padding:10px 0 8px; background:transparent; color:var(--sub); font-size:11px; border-radius:0; }
-  #tabbar button.on { color:var(--accent); font-weight:700; }
+  #tabbar button { flex:1; padding:10px 0 8px; background:transparent; color:var(--sub); font-size:11px; border-radius:0; position:relative; transition:transform .18s ease,color .18s ease; }
+  #tabbar button.on { color:var(--accent); font-weight:700; transform:translateY(-3px); }
+  #tabbar button.on::after { content:""; display:block; width:5px; height:5px; border-radius:50%; background:var(--accent); margin:3px auto 0; }
   .view { display:none; } .view.on { display:block; }
   .hint { font-size:12px; color:var(--sub); margin:2px 0 0; }
-  #ai-card { background:#FBF6EA; }
+  #ai-section { background:#FBF6EA; }
+  #ai-section h2 { color:#8A5A10; }
+  #ai-card { box-shadow:0 1px 8px rgba(217,144,37,.16); border:1px solid #F0DFC0; }
+  #manual-card { border:1px dashed #E4DCCB; border-radius:18px; background:#FDFCF9; }
   .member-card { display:flex; justify-content:space-between; align-items:center; padding:9px 4px; border-bottom:1px solid var(--line); }
   .edit-row input, .edit-row select { padding:4px 6px; margin-right:5px; font-size:12px; }
+  #toast { position:fixed; left:50%; bottom:76px; transform:translate(-50%,14px); background:rgba(43,38,32,.94); color:#fff; padding:10px 18px; border-radius:999px; font-size:13px; z-index:99; opacity:0; pointer-events:none; transition:opacity .25s ease,transform .25s ease; max-width:86vw; text-align:center; box-shadow:0 4px 16px rgba(0,0,0,.18); }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+  #toast.err { background:rgba(217,83,79,.96); }
+  #toast.ok { background:rgba(46,158,107,.96); }
   @media (max-width:360px){ .pie{ width:110px; height:110px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>WuAge 家庭财务助手<span class="ver" id="ver">v0.1.7-rc</span></h1>
+  <h1>WuAge 家庭财务助手<span class="ver" id="ver">v0.2.0-rc.1</span></h1>
 
   <!-- 首页 -->
   <div id="view-home" class="view on">
     <div class="card">
       <h2>本月支出 <span style="float:right"><select id="h-month" style="padding:5px"></select></span></h2>
       <div class="big" id="d-total">--</div>
-      <div class="delta" id="d-delta"></div>
+      <div class="meta-row"><span class="d-avg" id="d-avg"></span><span class="cmp" id="d-mom"></span><span class="cmp" id="d-yoy"></span></div>
     </div>
     <div class="card">
       <h2>分类占比</h2>
       <div class="pie" id="d-pie"></div>
       <div class="legend" id="d-legend"></div>
     </div>
-    <div class="card">
-      <h2>近 7 日每日支出</h2>
-      <div id="d-week"></div>
-    </div>
   </div>
 
   <!-- AI 记账 -->
   <div id="view-ai" class="view">
-    <div class="card">
-      <h2>AI 记账</h2>
+    <div class="card" id="ai-section">
+      <h2>🤖 AI 记账</h2>
       <div class="row">
         <input id="f-text" type="text" style="flex:1;min-width:240px" placeholder="一句话记账，如：今天妈妈买菜花了86元">
         <button class="primary" id="btn-parse">解析</button>
-        <button class="ghost" id="btn-toggle-manual">手动</button>
       </div>
       <div class="hint" id="parse-hint"></div>
       <div id="ai-card" class="card" style="display:none">
@@ -112,7 +118,10 @@
         <button class="ghost" id="btn-draft-resume">恢复</button>
         <button class="ghost" id="btn-draft-drop">丢弃</button>
       </div>
-      <div class="row" id="manual-box" style="display:none;margin-top:8px">
+    </div>
+    <div class="card" id="manual-card">
+      <h2>✍️ 手动录入 <button class="ghost" id="btn-toggle-manual" style="float:right;padding:4px 10px">收起</button></h2>
+      <div class="row" id="manual-box">
         <input id="f-amount" type="number" step="0.01" min="0.01" placeholder="金额(元)" style="width:100px">
         <input id="f-date" type="date">
         <select id="f-category"></select>
@@ -129,8 +138,8 @@
       <div class="row" style="margin-bottom:6px">
         <select id="f-range"><option value="all">全部</option><option value="today">今天</option><option value="7d">近7天</option><option value="month">本月</option><option value="custom">自定义</option></select>
         <input id="f-from" type="date" style="display:none"> ~ <input id="f-to" type="date" style="display:none">
-        <select id="f-cat"><option value="">全部类别</option></select>
-        <select id="f-mem"><option value="">全部成员</option></select>
+        <select id="f-cat"></select>
+        <select id="f-mem"></select>
       </div>
       <table><thead><tr><th>日期</th><th>分类</th><th class="num">金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="bill-rows"></tbody></table>
       <div class="hint" style="text-align:right" id="bill-total"></div>
@@ -168,12 +177,32 @@
   var $ = function (id) { return document.getElementById(id); };
   var CATS = [], MEMS = [], CURRENT = null, DRAFT_ID = null;
   var COLORS = ["#D99025","#4A6FA5","#2E9E6B","#C0565A","#8B5E9E","#0E9AA7","#D97706","#A5678F","#6B7280","#9A937F"];
+  var toastTimer = null;
 
   function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
-  function yuan(c){return (c/100).toFixed(2);}
+  function yuan(c){return ((c||0)/100).toFixed(2);}
   function fmt(d){var m=String(d.getMonth()+1);if(m.length<2)m="0"+m;var day=String(d.getDate());if(day.length<2)day="0"+day;return d.getFullYear()+"-"+m+"-"+day;}
   function todayS(){return fmt(new Date());}
   function fillSelect(sel,opts,selv){sel.innerHTML="";opts.forEach(function(o){var v=(typeof o==="object")?o.value:o,t=(typeof o==="object")?o.text:o;var x=document.createElement("option");x.value=v;x.textContent=t;if(v===selv)x.selected=true;sel.appendChild(x);});}
+
+  // ── 轻提示（底部悬浮，2.5s 自动消失；删除确认框除外） ──────────────
+  function showToast(msg,type){
+    var t=$("toast");
+    if(!t){t=document.createElement("div");t.id="toast";document.body.appendChild(t);}
+    t.className="show "+(type==="err"?"err":type==="ok"?"ok":"");
+    t.textContent=msg;
+    if(toastTimer)clearTimeout(toastTimer);
+    toastTimer=setTimeout(function(){t.className="";},2500);
+  }
+  // 分类 → 稳定彩色 Pills 配色
+  function pillStyle(name){
+    var s=String(name==null?"其他":name),h=0;
+    for(var i=0;i<s.length;i++){h=(h*33+s.charCodeAt(i))%360;}
+    return "background:hsl("+h+",52%,90%);color:hsl("+h+",55%,28%)";
+  }
+  function emptyGuide(msg){
+    return "<div class='empty-guide'><div class='eg-ico'>🧾</div><div>"+esc(msg)+"</div><button class='ghost' data-goto='ai' style='margin-top:8px'>✍️ 用 AI 记一笔</button></div>";
+  }
 
   function showView(id){
     document.querySelectorAll(".view").forEach(function(v){v.classList.remove("on");});
@@ -183,6 +212,10 @@
     if(id==="bills") loadBills();
     if(id==="family") loadFamily();
   }
+  document.addEventListener("click",function(ev){
+    var g=ev.target.closest?ev.target.closest("[data-goto]"):null;
+    if(g&&g.dataset&&g.dataset.goto){showView(g.dataset.goto);return;}
+  });
   document.addEventListener("click",function(ev){
     var btn=ev.target.closest?ev.target.closest("button"):null;
     if(btn&&btn.dataset&&btn.dataset.view){showView(btn.dataset.view);return;}
@@ -195,39 +228,47 @@
 
   function loadMeta(){
     return fetch("api/health").then(function(r){return r.json();}).then(function(h){
-      CATS=h.categories||[];fillSelect($("f-category"),[""].concat(CATS),"");
-      fillSelect($("f-cat"),[""].concat(CATS),"");
+      CATS=h.categories||[];
+      fillSelect($("f-cat"),[{value:"",text:"全部类别"}].concat(CATS),"");
       fillSelect($("f-category"),CATS,"餐饮");
       return fetch("api/members").then(function(m){return m.json();}).then(function(d){
         MEMS=(d.members||[]).map(function(x){return x.name;});
-        fillSelect($("f-mem"),[""].concat(MEMS),"");
+        fillSelect($("f-mem"),[{value:"",text:"全部成员"}].concat(MEMS),"");
       });
     }).catch(function(e){$("ver").textContent="连接后端失败："+e;});
   }
 
   // ── 首页 Dashboard ────────────────────────────────────────────────
   function loadDashboard(){
-    var off=$("h-month").value?parseInt($("h-month").dataset.offset,10):0;
+    var sel=$("h-month"),opt=sel.options[sel.selectedIndex];
+    var off=(opt&&opt.dataset)?parseInt(opt.dataset.offset,10):0;
+    if(isNaN(off))off=0;
     fetch("api/dashboard?offset="+off).then(function(r){return r.json();}).then(function(d){
-      $("d-total").innerHTML=yuan(d.month_total_cents)+" <small>元 · "+d.count+" 笔</small>";
-      var dl=$("d-delta");
-      if(d.change_pct===null){dl.textContent="上月无支出记录";}
-      else{dl.innerHTML=(d.change_pct>0?"📈 较上月 ↑":"📉 较上月 ↓")+Math.abs(d.change_pct)+"%";dl.className="delta "+(d.change_pct>0?"up":"down");}
+      $("d-total").innerHTML=yuan(d.month_total_cents)+" <small>元</small>";
+      var days=d.days_elapsed||1;
+      $("d-avg").innerHTML="日均 <b>"+yuan(Math.round(d.month_total_cents/days))+"</b> 元/天";
+      var dl=$("d-mom");
+      if(d.change_pct===null){dl.innerHTML="环比 <i>无记录</i>";dl.className="cmp";dl.title="上月无支出记录";}
+      else{dl.innerHTML="环比 "+(d.change_pct>0?"↑":"↓")+Math.abs(d.change_pct)+"%";dl.className="cmp "+(d.change_pct>0?"up":"down");dl.title="上月支出 "+yuan(d.prev_total_cents)+" 元";}
+      var yl=$("d-yoy");
+      if(d.yoy_pct===null){yl.innerHTML="同比 <i>无记录</i>";yl.className="cmp";yl.title="去年同月（"+d.last_year_month+"）无支出记录";}
+      else{yl.innerHTML="同比 "+(d.yoy_pct>0?"↑":"↓")+Math.abs(d.yoy_pct)+"%";yl.className="cmp "+(d.yoy_pct>0?"up":"down");yl.title="去年同月（"+d.last_year_month+"）支出 "+yuan(d.last_year_total_cents)+" 元";}
       var total=d.month_total_cents||1;
       var shares=d.cat_share||[];
-      if(!shares.length){$("d-pie").style.background="#F4EFE4";$("d-legend").innerHTML="<div class=empty>本月还没有记账</div>";$("d-week").innerHTML="<div class=empty>本月还没有记账</div>";return;}
+      if(!shares.length){
+        $("d-pie").style.background="#F4EFE4";
+        $("d-legend").innerHTML=emptyGuide("本月还没有记账");
+        return;
+      }
       var grad=[],acc=0,lh="";
       shares.forEach(function(s,i){var p=Math.round(s.total_cents/total*100);grad.push(COLORS[i%COLORS.length]+" "+acc+"% "+(acc+p)+"%");lh+="<div><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:"+COLORS[i%COLORS.length]+"'></span> "+esc(s.name)+" <b>"+yuan(s.total_cents)+" 元</b>（"+p+"%）</div>";acc+=p;});
       $("d-pie").style.background="conic-gradient("+grad.join(",")+")";
       $("d-legend").innerHTML=lh;
-      var w=d.last7||[],max=Math.max.apply(null,w.map(function(x){return x.total_cents;}))||1,h="";
-      w.forEach(function(x){var p=Math.round(x.total_cents/max*100);h+="<div class=bar><span class=nm>"+x.date.slice(5)+"</span><span class=tr><span class=fl style='width:"+p+"%;background:"+COLORS[(x.date.slice(8)-1)%COLORS.length]+"'></span></span><span class=vl>"+yuan(x.total_cents)+"</span></div>";});
-      $("d-week").innerHTML=h;
     }).catch(function(e){$("d-total").textContent="加载失败";});
   }
   function initMonthSelect(){
     var sel=$("h-month"),now=new Date();
-    for(var i=11;i>=0;i--){var d=new Date(now.getFullYear(),now.getMonth()-i,1);var o=document.createElement("option");o.value=d.toISOString().slice(0,7);o.textContent=d.getFullYear()+"年"+(d.getMonth()+1)+"月";o.dataset.offset=String(i);if(i===0)o.selected=true;sel.appendChild(o);}
+    for(var i=11;i>=0;i--){var d=new Date(now.getFullYear(),now.getMonth()-i,1);var o=document.createElement("option");o.value=d.toISOString().slice(0,7);o.textContent=d.getFullYear()+"年"+(d.getMonth()+1)+"月";o.dataset.offset=String(-i);if(i===0)o.selected=true;sel.appendChild(o);}
     sel.addEventListener("change",function(){loadDashboard();});
   }
 
@@ -239,13 +280,13 @@
     fetch("api/parse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:text})})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
-        if(!res.ok){$("parse-hint").textContent="❌ "+(res.d.error||"解析失败");return;}
-        CURRENT=res.d.parsed;showCard(CURRENT);saveDraft(CURRENT);$("f-text").value="";
-      }).catch(function(e){$("parse-hint").textContent="❌ 解析失败："+e;});
+        if(!res.ok){showToast("解析失败："+(res.d.error||""),"err");return;}
+        CURRENT=res.d.parsed;showCard(CURRENT);saveDraft(CURRENT);$("f-text").value="";$("parse-hint").textContent="";
+      }).catch(function(e){showToast("解析失败："+e,"err");});
   }
   function showCard(p){
     $("ai-conf").textContent="置信度 "+Math.round((p.ai_confidence||0.8)*100)+"%";
-    $("ai-view").innerHTML="金额 <b>"+yuan(p.amount_cents)+"</b> 元 · "+esc(p.date)+" · [<b>"+esc(p.category)+"</b>] · "+esc(p.member||"本人")+(p.merchant?" · 🏪 "+esc(p.merchant):"")+" · "+esc(p.note);
+    $("ai-view").innerHTML="金额 <b>"+yuan(p.amount_cents)+"</b> 元 · "+esc(p.date)+" · <span class='pill' style='"+pillStyle(p.category)+"'>"+esc(p.category)+"</span> · "+esc(p.member||"本人")+(p.merchant?" · 🏪 "+esc(p.merchant):"")+" · "+esc(p.note);
     $("ai-card").style.display="";$("ai-fields").style.display="";$("ai-edit").style.display="none";$("parse-hint").textContent="";
     fillSelect($("e-category"),CATS,p.category);
     var memOpts=[p.member||"本人"].concat(MEMS.filter(function(m){return m!==(p.member||"本人");}));
@@ -263,13 +304,15 @@
     fetch("api/entries",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
-        if(!res.ok){alert("保存失败："+(res.d.error||""));return;}
-        dropDraft();hideCard();$("parse-hint").textContent="✅ 已确认记账：["+res.d.category+"] "+yuan(res.d.amount_cents)+" 元";loadBills();
-      }).catch(function(e){alert("保存失败："+e);});
+        if(!res.ok){showToast("保存失败："+(res.d.error||""),"err");return;}
+        dropDraft();hideCard();$("parse-hint").textContent="✅ 已确认记账：["+res.d.category+"] "+yuan(res.d.amount_cents)+" 元";
+        showToast("✅ 已记账 "+yuan(res.d.amount_cents)+" 元","ok");
+        loadBills();
+      }).catch(function(e){showToast("保存失败："+e,"err");});
   }
   function startEditCard(){$("ai-fields").style.display="none";$("ai-edit").style.display="";}
   function saveEditCard(){
-    var amt=parseFloat($("e-amount").value);if(!(amt>0)){alert("金额不对");return;}if(!CURRENT)return;
+    var amt=parseFloat($("e-amount").value);if(!(amt>0)){showToast("金额不对","err");return;}if(!CURRENT)return;
     CURRENT.amount_cents=Math.round(amt*100);CURRENT.date=$("e-date").value||CURRENT.date;CURRENT.category=$("e-category").value;
     CURRENT.member=$("e-member").value;CURRENT.merchant=$("e-merchant").value.trim()||null;CURRENT.note=$("e-note").value.trim();
     showCard(CURRENT);saveDraft(CURRENT);$("parse-hint").textContent="已更新，请再次确认";
@@ -284,9 +327,13 @@
     }).catch(function(){});
   }
   function manualAdd(){
-    var amt=parseFloat($("f-amount").value);if(!(amt>0)){alert("金额不对");return;}
+    var amt=parseFloat($("f-amount").value);if(!(amt>0)){showToast("金额不对","err");return;}
+    if(!$("f-category").value){showToast("请选择分类","err");return;}
     fetch("api/entries",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount_cents:Math.round(amt*100),date:$("f-date").value||undefined,category:$("f-category").value,note:$("f-note").value.trim()})})
-      .then(function(r){return r.json();}).then(function(d){if(d.error){alert("失败："+d.error);return;}$("f-amount").value="";$("f-note").value="";alert("✅ 已保存");loadBills();}).catch(function(e){alert(e);});
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){showToast("失败："+d.error,"err");return;}
+        $("f-amount").value="";$("f-note").value="";showToast("✅ 已保存","ok");loadBills();
+      }).catch(function(e){showToast("保存失败："+e,"err");});
   }
 
   // ── 账单 ───────────────────────────────────────────────────────────
@@ -309,7 +356,7 @@
       if(!rows.length){tb.innerHTML="<tr><td colspan=5 class=empty>暂无账单，试试用 AI 记一笔吧</td></tr>";return;}
       rows.forEach(function(r){
         var tr=document.createElement("tr");tr.dataset.id=r.id;
-        tr.innerHTML="<td>"+esc(r.date)+"</td><td><span class=tag>"+esc(r.category)+"</span></td>"+
+        tr.innerHTML="<td>"+esc(r.date)+"</td><td><span class='pill' style='"+pillStyle(r.category)+"'>"+esc(r.category)+"</span></td>"+
           "<td class='num "+(r.kind==="income"?"amt-in":"amt-out")+"'>"+(r.kind==="income"?"+":"-")+yuan(r.amount_cents)+"</td>"+
           "<td>"+esc(r.note)+"<br><span style=color:#9A937F;font-size:11px>"+esc(r.member||"本人")+(r.merchant?" · "+esc(r.merchant):"")+"</span></td>"+
           "<td><button class='ghost' data-a=edit>改</button> <button class='danger' data-a=del>删</button></td>";
@@ -354,7 +401,7 @@
           b.onclick=function(){
             if(!confirm("移除该成员？"))return;
             fetch("api/members/"+b.dataset.mid,{method:"DELETE"}).then(function(r){return r.json();}).then(function(d){
-              if(d.error){alert(d.error);return;}loadFamily();
+              if(d.error){showToast(d.error,"err");return;}loadFamily();
             });
           };
         });
@@ -363,9 +410,12 @@
   }
   $("btn-new-member").onclick=function(){$("member-form").style.display=$("member-form").style.display==="none"?"":"none";};
   $("btn-member-save").onclick=function(){
-    var n=$("m-name").value.trim();if(!n){alert("姓名必填");return;}
+    var n=$("m-name").value.trim();if(!n){showToast("姓名必填","err");return;}
     fetch("api/members",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:n,relation:$("m-relation").value.trim()||null})})
-      .then(function(r){return r.json();}).then(function(d){if(d.error){alert(d.error);return;}$("m-name").value="";$("m-relation").value="";$("member-form").style.display="none";loadFamily();});
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){showToast(d.error,"err");return;}
+        $("m-name").value="";$("m-relation").value="";$("member-form").style.display="none";showToast("✅ 已添加 "+n,"ok");loadFamily();
+      });
   };
   $("btn-member-cancel").onclick=function(){$("member-form").style.display="none";};
 
@@ -377,7 +427,11 @@
   $("btn-edit-save").onclick=saveEditCard;
   $("btn-edit-cancel").onclick=function(){if(CURRENT)showCard(CURRENT);};
   $("btn-add").onclick=manualAdd;
-  $("btn-toggle-manual").onclick=function(){$("manual-box").style.display=$("manual-box").style.display==="none"?"":"none";};
+  $("btn-toggle-manual").onclick=function(){
+    var box=$("manual-box"),show=box.style.display==="none";
+    box.style.display=show?"":"none";
+    $("btn-toggle-manual").textContent=show?"收起":"展开";
+  };
   ["f-cat","f-mem","f-range","f-from","f-to"].forEach(function(id){$(id).addEventListener("change",function(){if(id==="f-range"){var c=$("f-range").value==="custom";$("f-from").style.display=c?"":"none";$("f-to").style.display=c?"":"none";}loadBills();});});
 
   $("f-date").value=todayS();

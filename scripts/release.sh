@@ -5,7 +5,7 @@ set -euo pipefail
 
 V="${1:-}"
 if [[ -z "$V" ]]; then echo "用法: bash scripts/release.sh v0.x.y"; exit 1; fi
-if [[ ! "$V" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "版本号格式应为 vX.Y.Z"; exit 1; fi
+if [[ ! "$V" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then echo "版本号格式应为 vX.Y.Z 或 vX.Y.Z-rc.N"; exit 1; fi
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"

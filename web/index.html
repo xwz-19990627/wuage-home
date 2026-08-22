@@ -9,9 +9,11 @@
   * { box-sizing: border-box; }
   body { margin:0; background:var(--bg); color:var(--ink);
          font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
-  .wrap { max-width:760px; margin:0 auto; padding:20px 14px 60px; }
+  .wrap { max-width:820px; margin:0 auto; padding:20px 14px 60px; }
   h1 { font-size:20px; margin:4px 0 2px; }
-  .sub { color:var(--sub); font-size:12px; margin-bottom:16px; }
+  .ver { display:inline-block; background:#f1efe9; color:var(--sub); border-radius:6px;
+         font-size:11px; padding:1px 8px; vertical-align:2px; margin-left:6px; }
+  .sub { color:var(--sub); font-size:12px; margin-bottom:16px; word-break:break-all; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
           padding:14px; margin-bottom:14px; }
   .card h2 { font-size:14px; margin:0 0 10px; color:var(--sub); font-weight:600; }
@@ -24,27 +26,37 @@
   .primary { background:var(--accent); color:#fff; }
   .ghost { background:#f1efe9; color:#55503f; padding:5px 10px; font-size:12px; }
   .danger { background:transparent; color:#c0392b; padding:5px 10px; font-size:12px; }
+  .chip { background:#f1efe9; border:1px solid var(--line); color:#55503f;
+          padding:5px 12px; border-radius:20px; font-size:13px; cursor:pointer; }
+  .chip.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .mt { margin-top:10px; }
+  .metrics { display:flex; gap:26px; flex-wrap:wrap; margin:6px 0 12px; }
+  .metrics .m .v { font-size:22px; font-weight:700; }
+  .metrics .m .k { font-size:12px; color:var(--sub); }
+  .tabs button { background:transparent; color:var(--sub); padding:6px 10px; font-size:13px; }
+  .tabs button.on { color:var(--accent); font-weight:700; border-bottom:2px solid var(--accent);
+                    border-radius:0; }
   table { width:100%; border-collapse:collapse; font-size:14px; }
   th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
   th { color:var(--sub); font-weight:600; font-size:12px; }
   td.num, th.num { text-align:right; }
   .empty { color:var(--sub); text-align:center; padding:18px 0; }
   .bar { display:flex; align-items:center; gap:8px; margin:4px 0; }
-  .bar .name { width:72px; font-size:12px; color:var(--ink); text-align:right; flex:none; }
+  .bar .name { width:84px; font-size:12px; color:var(--ink); text-align:right; flex:none; }
   .bar .track { flex:1; background:#f1efe9; border-radius:4px; height:14px; overflow:hidden; }
   .bar .fill { height:100%; background:var(--accent); border-radius:4px; min-width:2px; }
-  .bar .val { width:120px; font-size:12px; color:var(--sub); flex:none; }
-  .total { font-size:26px; font-weight:700; margin:2px 0; }
-  .total small { font-size:13px; color:var(--sub); font-weight:400; }
+  .bar .val { width:150px; font-size:12px; color:var(--sub); flex:none; text-align:right; }
   .tag { display:inline-block; background:#f4ecda; color:#8a6420; border-radius:5px;
          padding:0 7px; font-size:12px; }
-  .edit-row input, .edit-row select { padding:4px 6px; font-size:13px; }
+  .edit-row input, .edit-row select { padding:4px 6px; font-size:13px; margin-right:6px; }
+  .total-line { font-size:12px; color:var(--sub); margin:6px 0 0; text-align:right; }
+  .foot { color:var(--sub); font-size:11px; text-align:center; margin-top:26px; }
   @media (max-width:600px) { .row label { width:100%; margin-bottom:-4px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>🏠 wuage-home · 家庭账本</h1>
+  <h1>🏠 wuage-home · 家庭账本<span class="ver" id="ver">v0.1.1</span></h1>
   <div class="sub" id="subline">加载中…</div>
 
   <div class="card">
@@ -63,8 +75,21 @@
   </div>
 
   <div class="card">
-    <h2>本周汇总</h2>
-    <div id="weekly"></div>
+    <h2>分析</h2>
+    <div class="row">
+      <button class="chip on" data-range="week">本周</button>
+      <button class="chip" data-range="7d">近7天</button>
+      <button class="chip" data-range="30d">近30天</button>
+      <button class="chip" data-range="custom">自定义</button>
+      <input id="r-from" type="date" style="display:none">
+      ~ <input id="r-to" type="date" style="display:none">
+    </div>
+    <div class="metrics" id="metrics"></div>
+    <div class="tabs">
+      <button id="tab-cat" class="on">按类别</button>
+      <button id="tab-day">按日趋势</button>
+    </div>
+    <div class="mt" id="analysis"></div>
   </div>
 
   <div class="card">
@@ -78,13 +103,18 @@
       <thead><tr><th>日期</th><th>类别</th><th class="num">金额</th><th>备注</th><th>操作</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
+    <div class="total-line" id="ledger-total"></div>
   </div>
+
+  <div class="foot">wuage-home · v0.1.1 · 数据存于本机 data/ 目录，可迁移</div>
 </div>
 
 <script>
 (function () {
   "use strict";
   var CATS = [];
+  var RANGE = "week";
+  var TAB = "cat";
   var $ = function (id) { return document.getElementById(id); };
 
   function esc(s) {
@@ -93,12 +123,20 @@
       .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   function yuan(cents) { return (cents / 100).toFixed(2); }
-  function todayStr() {
-    var d = new Date();
+  function fmt(d) {
     var m = String(d.getMonth() + 1); if (m.length < 2) m = "0" + m;
     var day = String(d.getDate()); if (day.length < 2) day = "0" + day;
     return d.getFullYear() + "-" + m + "-" + day;
   }
+  function todayStr() { return fmt(new Date()); }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function mondayOf(d) {
+    var x = new Date(d);
+    var wd = x.getDay();
+    x.setDate(x.getDate() - (wd === 0 ? 6 : wd - 1));
+    return x;
+  }
+
   function fillSelect(sel, options, selected) {
     sel.innerHTML = "";
     options.forEach(function (o) {
@@ -120,7 +158,81 @@
     });
   }
 
-  function filters() {
+  // 分析
+  function rangeDates() {
+    var t = new Date();
+    if (RANGE === "week") return { from: fmt(mondayOf(t)), to: fmt(t) };
+    if (RANGE === "7d") return { from: fmt(addDays(t, -6)), to: fmt(t) };
+    if (RANGE === "30d") return { from: fmt(addDays(t, -29)), to: fmt(t) };
+    return { from: $("r-from").value || fmt(addDays(t, -29)),
+             to: $("r-to").value || fmt(t) };
+  }
+
+  function renderAnalysis(entries) {
+    var total = entries.reduce(function (s, r) { return s + r.amount_cents; }, 0);
+    var days = {};
+    entries.forEach(function (r) { days[r.date] = true; });
+    var nDays = Object.keys(days).length;
+    var avg = nDays ? total / nDays : 0;
+    $("metrics").innerHTML =
+      '<div class="m"><div class="v">' + yuan(total) + '</div><div class="k">总支出(元)</div></div>' +
+      '<div class="m"><div class="v">' + entries.length + '</div><div class="k">笔数</div></div>' +
+      '<div class="m"><div class="v">' + yuan(Math.round(avg)) + '</div><div class="k">日均(元)</div></div>';
+
+    if (!entries.length) {
+      $("analysis").innerHTML = '<div class="empty">该区间无记录</div>';
+      return;
+    }
+    if (TAB === "cat") {
+      var agg = {};
+      entries.forEach(function (r) {
+        var a = agg[r.category] || { total: 0, count: 0 };
+        a.total += r.amount_cents; a.count += 1; agg[r.category] = a;
+      });
+      var cats = Object.keys(agg).sort(function (a, b) { return agg[b].total - agg[a].total; });
+      var max = Math.max.apply(null, cats.map(function (c) { return agg[c].total; }));
+      var rows = cats.map(function (c) {
+        var a = agg[c];
+        return { name: c, pct: Math.round(a.total / max * 100),
+                 label: yuan(a.total) + " 元 · " + a.count + " 笔 · " +
+                        Math.round(a.total / total * 100) + "%" };
+      });
+      $("analysis").innerHTML = barList(rows);
+    } else {
+      var byDay = {};
+      entries.forEach(function (r) { byDay[r.date] = (byDay[r.date] || 0) + r.amount_cents; });
+      var daysArr = Object.keys(byDay).sort();
+      if (daysArr.length > 60) daysArr = daysArr.slice(daysArr.length - 60);
+      var dmax = Math.max.apply(null, daysArr.map(function (d) { return byDay[d]; }));
+      var drows = daysArr.map(function (d) {
+        return { name: d, pct: Math.round(byDay[d] / dmax * 100),
+                 label: yuan(byDay[d]) + " 元" };
+      });
+      $("analysis").innerHTML = barList(drows);
+    }
+  }
+
+  function barList(rows) {
+    var html = "";
+    rows.forEach(function (r) {
+      html += '<div class="bar"><span class="name">' + esc(r.name) + "</span>" +
+        '<span class="track"><span class="fill" style="width:' + r.pct + '%"></span></span>' +
+        '<span class="val">' + r.label + "</span></div>";
+    });
+    return html;
+  }
+
+  function loadAnalysis() {
+    var r = rangeDates();
+    $("r-from").value = r.from; $("r-to").value = r.to;
+    fetch("/api/entries?from=" + r.from + "&to=" + r.to)
+      .then(function (res) { return res.json(); })
+      .then(function (d) { renderAnalysis(d.entries || []); })
+      .catch(function (e) { $("analysis").innerHTML = '<div class="empty">加载失败：' + esc(e) + "</div>"; });
+  }
+
+  // 流水
+  function ledgerQuery() {
     var s = "?";
     if ($("filt-cat").value) s += "category=" + encodeURIComponent($("filt-cat").value) + "&";
     if ($("filt-from").value) s += "from=" + $("filt-from").value + "&";
@@ -131,6 +243,9 @@
   function renderTable(entries) {
     var tbody = $("rows");
     tbody.innerHTML = "";
+    var total = entries.reduce(function (s, r) { return s + r.amount_cents; }, 0);
+    $("ledger-total").textContent = entries.length
+      ? "合计 " + yuan(total) + " 元 · " + entries.length + " 笔" : "";
     if (!entries.length) {
       tbody.innerHTML = '<tr><td colspan="5" class="empty">还没有记录，来一笔吧</td></tr>';
       return;
@@ -140,49 +255,23 @@
       tr.dataset.id = r.id;
       tr.innerHTML =
         "<td>" + esc(r.date) + "</td>" +
-        "<td><span class="tag">" + esc(r.category) + "</span></td>" +
-        "<td class="num">" + yuan(r.amount_cents) + "</td>" +
+        "<td><span class=\"tag\">" + esc(r.category) + "</span></td>" +
+        "<td class=\"num\">" + yuan(r.amount_cents) + "</td>" +
         "<td>" + esc(r.note) + "</td>" +
-        "<td><button class="ghost" data-act="edit">改</button> " +
-        "<button class="danger" data-act="del">删</button></td>";
+        "<td><button class=\"ghost\" data-act=\"edit\">改</button> " +
+        "<button class=\"danger\" data-act=\"del\">删</button></td>";
       tbody.appendChild(tr);
     });
   }
 
-  function renderWeekly(w) {
-    var el = $("weekly");
-    if (!w || !w.count) {
-      el.innerHTML = '<div class="empty">' + esc(w ? w.week_start + " ~ " + w.week_end : "") +
-        "本周还没有记账。给家人留个零花钱记录吧～</div>";
-      return;
-    }
-    var cats = Object.keys(w.by_category).sort(function (a, b) {
-      return w.by_category[b].total_cents - w.by_category[a].total_cents;
-    });
-    var max = Math.max.apply(null, cats.map(function (c) {
-      return w.by_category[c].total_cents;
-    }));
-    var html = '<div class="total">' + yuan(w.total_cents) +
-      ' <small>元 · ' + w.count + ' 笔 · ' + esc(w.week_start) + " ~ " + esc(w.week_end) + "</small></div>";
-    cats.forEach(function (c) {
-      var a = w.by_category[c];
-      var pct = Math.round(a.total_cents / max * 100);
-      html += '<div class="bar"><span class="name">' + esc(c) + "</span>" +
-        '<span class="track"><span class="fill" style="width:' + pct + '%"></span></span>' +
-        '<span class="val">' + yuan(a.total_cents) + " 元 · " + a.count + " 笔</span></div>";
-    });
-    el.innerHTML = html;
-  }
-
   function refresh() {
-    fetch("/api/entries" + filters()).then(function (r) { return r.json(); })
+    fetch("/api/entries" + ledgerQuery()).then(function (r) { return r.json(); })
       .then(function (d) { renderTable(d.entries || []); })
       .catch(function (e) { alert("加载流水失败：" + e); });
-    fetch("/api/weekly").then(function (r) { return r.json(); })
-      .then(renderWeekly)
-      .catch(function () {});
+    loadAnalysis();
   }
 
+  // 记一笔
   function addEntry() {
     var amount = parseFloat($("f-amount").value);
     if (!(amount > 0)) { alert("金额不对，填个大于 0 的数"); return; }
@@ -206,39 +295,55 @@
     }).catch(function (e) { alert("记账失败：" + e); });
   }
 
+  // 行内编辑（金额/日期/类别/备注）
   function startEdit(tr) {
     var id = tr.dataset.id;
+    var date = tr.children[0].textContent.trim();
     var cat = tr.children[1].textContent.trim();
+    var amountYuan = parseFloat(tr.children[2].textContent).toFixed(2);
     var note = tr.children[3].textContent;
     tr.innerHTML = "";
     var cell = document.createElement("td"); cell.colSpan = 5;
     cell.className = "edit-row";
+
+    var d = document.createElement("input"); d.type = "date"; d.value = date;
     var sel = document.createElement("select");
     fillSelect(sel, CATS, cat);
-    var inp = document.createElement("input"); inp.type = "text"; inp.value = note;
+    var a = document.createElement("input"); a.type = "number"; a.step = "0.01";
+    a.min = "0.01"; a.style.width = "88px"; a.value = amountYuan;
+    var n = document.createElement("input"); n.type = "text"; n.value = note;
+    n.style.width = "180px";
     var save = document.createElement("button"); save.className = "primary"; save.textContent = "保存";
     var cancel = document.createElement("button"); cancel.className = "ghost"; cancel.textContent = "取消";
-    cell.appendChild(sel); cell.appendChild(inp); cell.appendChild(save); cell.appendChild(cancel);
+
+    cell.appendChild(d); cell.appendChild(sel); cell.appendChild(a);
+    cell.appendChild(n); cell.appendChild(save); cell.appendChild(cancel);
     tr.appendChild(cell);
+
     save.onclick = function () {
+      var amt = parseFloat(a.value);
+      if (!(amt > 0)) { alert("金额不对"); return; }
+      var body = { category: sel.value, note: n.value.trim(), date: d.value,
+                   amount_cents: Math.round(amt * 100) };
       fetch("/api/entries/" + id, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: sel.value, note: inp.value.trim() })
-      }).then(function (r) { return r.json(); }).then(function (d) {
-        if (d.error) { alert("修改失败：" + d.error); }
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        if (res.error) { alert("修改失败：" + res.error); }
         refresh();
       }).catch(function (e) { alert("修改失败：" + e); });
     };
     cancel.onclick = refresh;
   }
 
+  // 事件绑定
   document.addEventListener("click", function (ev) {
     var btn = ev.target.closest ? ev.target.closest("button") : null;
-    if (!btn || !btn.dataset || !btn.dataset.act) return;
-    var tr = btn.closest("tr");
-    if (btn.dataset.act === "edit") { startEdit(tr); return; }
+    if (!btn || !btn.dataset) return;
+    if (btn.dataset.act === "edit") { startEdit(btn.closest("tr")); return; }
     if (btn.dataset.act === "del") {
+      var tr = btn.closest("tr");
       if (!confirm("删除这笔？")) return;
       fetch("/api/entries/" + tr.dataset.id, { method: "DELETE" })
         .then(function (r) { return r.json(); }).then(function (d) {
@@ -247,10 +352,28 @@
         }).catch(function (e) { alert("删除失败：" + e); });
       return;
     }
+    if (btn.dataset.range) {
+      RANGE = btn.dataset.range;
+      var custom = RANGE === "custom";
+      $("r-from").style.display = custom ? "" : "none";
+      $("r-to").style.display = custom ? "" : "none";
+      document.querySelectorAll(".chip").forEach(function (c) {
+        c.classList.toggle("on", c.dataset.range === RANGE);
+      });
+      loadAnalysis();
+      return;
+    }
+    if (btn.id === "tab-cat") { TAB = "cat"; }
+    if (btn.id === "tab-day") { TAB = "day"; }
+    $("tab-cat").classList.toggle("on", TAB === "cat");
+    $("tab-day").classList.toggle("on", TAB === "day");
+    if (btn.id === "tab-cat" || btn.id === "tab-day") loadAnalysis();
   });
 
   $("btn-add").onclick = addEntry;
   $("f-amount").addEventListener("keydown", function (e) { if (e.key === "Enter") addEntry(); });
+  $("r-from").addEventListener("change", function () { if (RANGE === "custom") loadAnalysis(); });
+  $("r-to").addEventListener("change", function () { if (RANGE === "custom") loadAnalysis(); });
   $("btn-reset").onclick = function () {
     $("filt-cat").value = ""; $("filt-from").value = ""; $("filt-to").value = "";
     refresh();

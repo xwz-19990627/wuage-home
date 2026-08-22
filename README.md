@@ -39,6 +39,18 @@ python3.11 scripts/web.py            # 打开 http://127.0.0.1:8000
 - 更新记录：[CHANGELOG.md](CHANGELOG.md) ｜ 版本规划：[docs/VERSION_PLAN.md](docs/VERSION_PLAN.md)
 - 功能设计：[docs/specs/](docs/specs/) ｜ 完成归档：[docs/archive/](docs/archive/)
 
+
+## 打包与启动（App）
+
+```bash
+bash scripts/start-wuage.sh    # 启动面板并自动打开浏览器（http://127.0.0.1:8000）
+bash scripts/stop-wuage.sh     # 停止
+bash scripts/selftest.sh       # 验收/冒烟：API 回环检查
+bash scripts/package.sh        # 打包 → dist/wuage-home-v0.1.1.{zip,tar.gz}（不含 data/）
+
+# 手机访问：WUAGE_WEB_HOST=0.0.0.0 bash scripts/start-wuage.sh（局域网内可见）
+```
+
 ## 现状
 
 - [x] 项目脚手架初始化（git）

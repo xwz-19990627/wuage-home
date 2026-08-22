@@ -10,7 +10,7 @@ if [[ ! "$V" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "版本号格式应为 v
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 
-if ! grep -q "## [$V]" CHANGELOG.md; then
+if ! grep -qF "## [$V]" CHANGELOG.md; then
   echo "CHANGELOG.md 缺少 ## [$V] 条目，先补全再发布"
   exit 1
 fi

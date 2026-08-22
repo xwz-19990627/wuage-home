@@ -3,6 +3,22 @@
 本文件记录 wuage-home 每个版本的更新内容，遵守 `docs/SPEC.md` 的规范。
 最新版本在最上面。数据契约详见 `docs/DATA_MODEL.md`。
 
+## [v0.1.1] - 2026-08-21
+
+### Added
+- 分析卡片：本周/近7天/近30天/自定义区间切换；总支出/笔数/日均指标；
+  按类别占比视图（金额、笔数、百分比柱条）与按日趋势视图。
+- 完整行内编辑：金额/日期/类别/备注全字段（PATCH）。
+- 流水表筛选合计行；页面版本号标注 v0.1.1。
+- 验收工具：scripts/selftest.sh（API 回环冒烟：health/categories/增改删/weekly）。
+- 一键启停：scripts/start-wuage.sh（自动开浏览器）/ scripts/stop-wuage.sh。
+- 打包：scripts/package.sh → dist/wuage-home-v0.1.1.{zip,tar.gz}（不含 data/）。
+
+### Changed
+- v0.1.1 spec 确认范围：数据可视化 + 编辑；**不做账单导入**（用户拍板，移至后续版本）。
+
+### Fixed
+- （无）
 ## [v0.1.0] - 2026-08-21
 
 ### Added

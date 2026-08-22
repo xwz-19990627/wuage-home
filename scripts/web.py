@@ -101,11 +101,22 @@ class Handler(BaseHTTPRequestHandler):
             return
         q = self._query()
         if path == "/api/health":
-            self._json(200, {"ok": True, "db": str(L.DB_PATH),
-                             "categories": L.CANONICAL_CATEGORIES})
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                cats = [c["name"] for c in L.list_categories(conn, fam_id)]
+            finally:
+                conn.close()
+            self._json(200, {"ok": True, "db": str(L.DB_PATH), "categories": cats})
             return
         if path == "/api/categories":
-            self._json(200, {"categories": L.CANONICAL_CATEGORIES})
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                cats = [c["name"] for c in L.list_categories(conn, fam_id)]
+            finally:
+                conn.close()
+            self._json(200, {"categories": cats})
             return
         if path == "/api/entries":
             limit = None

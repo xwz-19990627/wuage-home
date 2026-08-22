@@ -3,6 +3,22 @@
 本文件记录 wuage-home 每个版本的更新内容，遵守 `docs/SPEC.md` 的规范。
 最新版本在最上面。数据契约详见 `docs/DATA_MODEL.md`。
 
+## [v0.1.5] - 2026-08-22
+
+### Added
+- 数据层 v2（PRD 对齐）：families / members / accounts / categories / transactions / drafts 表。
+- 分类管理 CLI：手动新增、改名、删除（**被交易引用禁止删除**、种子与"其他"不可删）；LLM 不自动建类。
+- 成员管理 CLI（默认"本人"；有消费记录禁止删除）。
+- 草稿 CLI（24h 过期自动清理）。
+- 迁移命令：旧账表 → transactions（幂等；分类映射：医疗健康→医疗、育儿教育→教育、未知→其他）。
+- docs/prd/：用户 PRD 原文、PRD 评审、分类体系设计三份文档入库。
+
+### Changed
+- /api/health、/api/categories 改为读取分类表（新增分类实时反映）。
+- 存量 6 笔真实数据已迁移到 v2 模型（分类口径转换正确）。
+
+### Fixed
+- row_to_dict 对无 tags 列的表（members/categories/drafts）崩溃问题。
 ## [v0.1.4] - 2026-08-22
 
 ### Fixed

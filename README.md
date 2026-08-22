@@ -22,7 +22,9 @@ DSH_HOME=/root/dsh_rsc/.dsh bash scripts/install-preset.sh
 #    "昨天打车23"
 #    "这周花了多少？"
 #    或命令行直连：
-python3 scripts/ledger.py add --json '{"amount_cents":1000,"category":"餐饮","note":"今天买西瓜花了10块"}'
+python3 scripts/ledger.py add --json
+python3 scripts/ledger.py categories --add 宠物   # 手动新增分类（LLM 不自动建）
+python3 scripts/ledger.py members --add 妈妈 --relation 老婆 '{"amount_cents":1000,"category":"餐饮","note":"今天买西瓜花了10块"}'
 python3 scripts/ledger.py weekly
 
 # 3. 起 Web 面板（查账/图表/按钮改账，零依赖）

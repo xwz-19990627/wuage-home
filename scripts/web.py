@@ -86,7 +86,16 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/" or path == "/index.html":
             try:
                 with open(INDEX_PATH, "rb") as f:
-                    self._send(200, f.read(), "text/html; charset=utf-8")
+                    # 禁用缓存：页面改动成功后不希望用户看到旧版（修复"改了没生效"）
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Expires", "0")
+                    data = f.read()
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
             except OSError:
                 self._error(500, "index.html not found at " + INDEX_PATH)
             return

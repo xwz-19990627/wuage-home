@@ -51,6 +51,8 @@
 
 ## 5. 版本发布流程（`bash scripts/release.sh v0.x.y`）
 
+0. **交付用户验收**：实现与本地测试完成后，**先让用户验收通过**（明确回复"可以/没问题"），
+   验收通过前不 commit、不打 tag、不推送。验收未过 → 回到修改循环。
 1. 功能 spec 已完成、测试通过（本地跑一遍 ledger.py / API 冒烟）。
 2. `CHANGELOG.md` 写好本版条目。
 3. 执行 `bash scripts/release.sh v0.x.y`：
@@ -72,6 +74,8 @@
 ## 8. 完成定义（Definition of Done）
 
 - [ ] 代码实现并本地验证（脚本冒烟 / API 测试）
+- [ ] **用户验收通过**（未验收不发布）
+- [ ] **测试数据隔离**：冒烟/调试一律用 `WUAGE_DATA=/tmp/wuage-test` 的独立库，禁止在正式 data/ 上增删改（清理正式库必须用户当面确认）
 - [ ] `docs/specs/` 有对应 spec（小修补除外）
 - [ ] `CHANGELOG.md` 记了本版条目
 - [ ] 数据契约变化同步更新 `docs/DATA_MODEL.md`

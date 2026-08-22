@@ -3,6 +3,15 @@
 本文件记录 wuage-home 每个版本的更新内容，遵守 `docs/SPEC.md` 的规范。
 最新版本在最上面。数据契约详见 `docs/DATA_MODEL.md`。
 
+## [v0.1.4] - 2026-08-22
+
+### Fixed
+- 柱状图柱身不可见：.fill 是 inline span，width/height 不生效 → 显式 display:block；
+  柱长按占比显示、颜色内联+CSS 兜底（用户验收通过）。
+- 旧页面被浏览器缓存导致"改了不生效"：HTML 响应与 <head> 增加 no-store 禁缓存。
+
+### Changed
+- 页面版本标记 v0.1.4；- docs/SPEC.md：发布流程加入"用户验收通过后才可提交/打 tag"与"测试数据隔离"守则。
 ## [v0.1.3] - 2026-08-22
 
 ### Added

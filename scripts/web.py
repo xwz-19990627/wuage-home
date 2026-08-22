@@ -155,6 +155,24 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, d)
             return
+        if path == "/api/members":
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                ms = L.list_members(conn, fam_id)
+            finally:
+                conn.close()
+            self._json(200, {"members": ms})
+            return
+        if path == "/api/drafts":
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                ds = L.list_drafts(conn, fam_id)
+            finally:
+                conn.close()
+            self._json(200, {"drafts": ds})
+            return
         self._error(404, "not found: " + path)
 
     # ── POST ───────────────────────────────────────────────────────────────
@@ -170,23 +188,41 @@ class Handler(BaseHTTPRequestHandler):
             if not text or not isinstance(text, str) or not text.strip():
                 self._error(400, "text required")
                 return
+            # 候选：动态读取家庭成员与分类（LLM 只能从中选）
+            conn = L.connect()
             try:
-                parsed = P.parse_text(text.strip())
+                fam_id = L.ensure_seed(conn)["family_id"]
+                cats = [c["name"] for c in L.list_categories(conn, fam_id)]
+                mems = [m["name"] for m in L.list_members(conn, fam_id)]
+            finally:
+                conn.close()
+            try:
+                parsed = P.parse_text(text.strip(), categories=cats, members=mems)
             except Exception as e:  # noqa: BLE001 — LLM/网络/解析错误
                 self._error(502, "解析失败：{}".format(e))
                 return
             if int(parsed.get("amount_cents") or 0) <= 0:
                 self._error(422, "没听出具体金额，请带上金额再说，如：今天买西瓜花了10块")
                 return
+            # 只返回解析结果（前端结果卡确认后才入库）
+            self._json(200, {"ok": True, "parsed": parsed})
+            return
+        if path == "/api/drafts":
+            try:
+                body = self._read_body()
+            except (ValueError, json.JSONDecodeError) as e:
+                self._error(400, "bad body: {}".format(e))
+                return
+            if not isinstance(body.get("data"), dict):
+                self._error(400, "data required")
+                return
             conn = L.connect()
             try:
-                row = L.add_record(conn, parsed)
-            except L.LedgerError as e:
-                self._error(400, str(e))
-                return
+                fam_id = L.ensure_seed(conn)["family_id"]
+                did = L.add_draft(conn, fam_id, body["data"])
             finally:
                 conn.close()
-            self._json(201, row)
+            self._json(201, {"ok": True, "id": did})
             return
         if path != "/api/entries":
             self._error(404, "not found")
@@ -231,6 +267,19 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── DELETE ─────────────────────────────────────────────────────────────
     def do_DELETE(self):
+        if urlparse(self.path).path.startswith("/api/drafts/"):
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                L.delete_draft(conn, fam_id, int(urlparse(self.path).path.rsplit("/", 1)[1]))
+            except (L.LedgerError, ValueError) as e:
+                conn.close()
+                self._error(404, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(200, {"ok": True})
+            return
         m = ENTRY_RE.match(urlparse(self.path).path)
         if not m:
             self._error(404, "not found")

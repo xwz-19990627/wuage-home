@@ -61,17 +61,52 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>🏠 wuage-home · 家庭账本<span class="ver" id="ver">v0.1.4-rc2</span></h1>
+  <h1>🏠 wuage-home · 家庭账本<span class="ver" id="ver">v0.1.6-rc</span></h1>
   <div class="sub" id="subline">加载中…</div>
 
   <div class="card">
-    <h2>记一笔</h2>
+    <h2>AI 记账</h2>
     <div class="row">
-      <input id="f-text" type="text" placeholder="一句话记账，如：今天买西瓜花了10块（大模型自动分类，不用手填金额）">
-      <button class="primary" id="btn-parse">记一笔（智能）</button>
+      <input id="f-text" type="text" placeholder="一句话记账，如：今天买西瓜花了10块（大模型自动分类）">
+      <button class="primary" id="btn-parse">解析</button>
       <button class="ghost" id="btn-toggle-manual">手动录入</button>
     </div>
     <div class="hint" id="parse-hint"></div>
+
+    <div class="card" id="ai-card" style="display:none; margin-top:10px">
+      <h2>AI 解析结果 <span class="tag" id="ai-conf"></span></h2>
+      <div id="ai-fields">
+        <div class="row" style="margin-bottom:6px">
+          <span id="ai-view"></span>
+        </div>
+        <div class="row">
+          <button class="primary" id="btn-confirm">确认记账</button>
+          <button class="ghost" id="btn-edit">修改</button>
+          <button class="ghost" id="btn-cancel">取消</button>
+        </div>
+      </div>
+      <div id="ai-edit" style="display:none">
+        <div class="row" style="margin-bottom:6px">
+          <label>金额(元)</label><input id="e-amount" type="number" step="0.01" min="0.01" style="width:88px">
+          <label>日期</label><input id="e-date" type="date">
+          <label>分类</label><select id="e-category"></select>
+          <label>成员</label><select id="e-member"></select>
+          <label>商户</label><input id="e-merchant" type="text" style="width:110px">
+          <label>备注</label><input id="e-note" type="text" style="width:200px">
+        </div>
+        <div class="row">
+          <button class="primary" id="btn-edit-save">保存修改</button>
+          <button class="ghost" id="btn-edit-cancel">取消编辑</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row" id="draft-bar" style="display:none; margin-top:10px">
+      <span class="hint">💾 有未完成的记账草稿（24h 内有效）</span>
+      <button class="ghost" id="btn-draft-resume">恢复</button>
+      <button class="ghost" id="btn-draft-drop">丢弃</button>
+    </div>
+
     <div class="row mt" id="manual-box" style="display:none">
       <label>金额(元)</label><input id="f-amount" type="number" step="0.01" min="0.01" placeholder="10.00">
       <label>日期</label><input id="f-date" type="date">
@@ -113,7 +148,7 @@
     <div class="total-line" id="ledger-total"></div>
   </div>
 
-  <div class="foot">wuage-home · v0.1.4-rc2 · 验收版（柱子修复）</div>
+  <div class="foot">wuage-home · v0.1.6-rc · AI 记账结果卡 + 草稿（待验收）</div>
 </div>
 
 <script>
@@ -165,18 +200,22 @@
       fillSelect($("f-category"), CATS, "餐饮");
       fillSelect($("filt-cat"), [""].concat(CATS), "");
       $("subline").textContent = "数据库：" + h.db;
+      fetch("api/members").then(function (m) { return m.json(); }).then(function (d) {
+        MEMS = (d.members || []).map(function (mm) { return mm.name; });
+      }).catch(function () {});
     }).catch(function (e) {
       $("subline").textContent = "无法连接后端：" + e;
     });
   }
 
-  // 一句话智能记账（大模型解析归类，无需手填金额）
+  // AI 记账：解析 → 结果卡 → 确认/修改/取消；未确认自动存草稿（24h）
+  var MEMS = [];
+  var CURRENT = null;
+  var DRAFT_ID = null;
+
   function smartAdd() {
     var text = $("f-text").value.trim();
-    if (!text) {
-      $("parse-hint").textContent = "先输入一句话，比如：今天买西瓜花了10块";
-      return;
-    }
+    if (!text) { $("parse-hint").textContent = "先输入一句话，比如：今天买西瓜花了10块"; return; }
     $("parse-hint").textContent = "🤔 大模型解析中…";
     fetch("api/parse", {
       method: "POST",
@@ -185,16 +224,102 @@
     }).then(function (r) {
       return r.json().then(function (d) { return { ok: r.ok, d: d }; });
     }).then(function (res) {
-      if (!res.ok) {
-        $("parse-hint").textContent = "❌ " + (res.d.error || "解析失败");
-        return;
-      }
-      var d = res.d;
-      $("parse-hint").textContent = "✅ 已记：[" + d.category + "] " + yuan(d.amount_cents) +
-        " 元 · " + d.date + "（记错了可去流水里点“改”）";
+      if (!res.ok) { $("parse-hint").textContent = "❌ " + (res.d.error || "解析失败"); return; }
+      CURRENT = res.d.parsed;
+      showCard(CURRENT);
+      saveDraft(CURRENT);
       $("f-text").value = "";
-      refresh();
     }).catch(function (e) { $("parse-hint").textContent = "❌ 解析失败：" + e; });
+  }
+
+  function aiViewHtml(p) {
+    return "金额 <b>" + yuan(p.amount_cents) + "</b> 元 · " + esc(p.date) +
+      " · [<b>" + esc(p.category) + "</b>] · " + esc(p.member || "本人") +
+      (p.merchant ? " · 🏪 " + esc(p.merchant) : "") +
+      " · " + esc(p.note) + " · 置信 " + Math.round((p.ai_confidence || 0.8) * 100) + "%";
+  }
+  function showCard(p) {
+    $("ai-conf").textContent = "置信度 " + Math.round((p.ai_confidence || 0.8) * 100) + "%";
+    $("ai-view").innerHTML = aiViewHtml(p);
+    $("ai-card").style.display = "";
+    $("ai-fields").style.display = "";
+    $("ai-edit").style.display = "none";
+    $("parse-hint").textContent = "";
+    fillSelect($("e-category"), CATS, p.category);
+    var memOpts = [p.member || "本人"].concat(MEMS.filter(function (m) { return m !== (p.member || "本人"); }));
+    fillSelect($("e-member"), memOpts, p.member || "本人");
+    $("e-amount").value = (p.amount_cents / 100).toFixed(2);
+    $("e-date").value = p.date;
+    $("e-merchant").value = p.merchant || "";
+    $("e-note").value = p.note || "";
+  }
+  function hideCard() { $("ai-card").style.display = "none"; CURRENT = null; }
+
+  function saveDraft(p) {
+    fetch("api/drafts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: p }) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.id) DRAFT_ID = d.id; })
+      .catch(function () {});
+  }
+  function dropDraft() {
+    if (DRAFT_ID) { fetch("api/drafts/" + DRAFT_ID, { method: "DELETE" }).catch(function () {}); DRAFT_ID = null; }
+  }
+
+  function confirmSave() {
+    if (!CURRENT) return;
+    var body = {};
+    ["amount_cents", "date", "kind", "category", "member", "merchant", "note", "tags"].forEach(function (k) { body[k] = CURRENT[k]; });
+    body.source = "ai_parsed"; body.channel = "manual";
+    body.raw_text = CURRENT.note; body.ai_confidence = CURRENT.ai_confidence;
+    fetch("api/entries", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+    }).then(function (res) {
+      if (!res.ok) { alert("保存失败：" + (res.d.error || "")); return; }
+      dropDraft();
+      hideCard();
+      $("parse-hint").textContent = "✅ 已确认记账：[" + res.d.category + "] " + yuan(res.d.amount_cents) + " 元";
+      refresh();
+    }).catch(function (e) { alert("保存失败：" + e); });
+  }
+  function startEditCard() { $("ai-fields").style.display = "none"; $("ai-edit").style.display = ""; }
+  function saveEditCard() {
+    var amt = parseFloat($("e-amount").value);
+    if (!(amt > 0)) { alert("金额不对"); return; }
+    if (!CURRENT) return;
+    CURRENT.amount_cents = Math.round(amt * 100);
+    CURRENT.date = $("e-date").value || CURRENT.date;
+    CURRENT.category = $("e-category").value;
+    CURRENT.member = $("e-member").value;
+    CURRENT.merchant = $("e-merchant").value.trim() || null;
+    CURRENT.note = $("e-note").value.trim();
+    showCard(CURRENT);
+    saveDraft(CURRENT);
+    $("parse-hint").textContent = "已更新，请再次确认";
+  }
+  function cancelCard() { dropDraft(); hideCard(); $("parse-hint").textContent = ""; }
+
+  function checkDraft() {
+    fetch("api/drafts").then(function (r) { return r.json(); }).then(function (d) {
+      var ds = d.drafts || [];
+      if (!ds.length) return;
+      var last = ds[0];
+      $("draft-bar").style.display = "";
+      $("btn-draft-resume").onclick = function () {
+        DRAFT_ID = last.id;
+        CURRENT = last.data;
+        showCard(CURRENT);
+        $("draft-bar").style.display = "none";
+        $("parse-hint").textContent = "已恢复草稿（确认记账将保存，取消将丢弃）";
+      };
+      $("btn-draft-drop").onclick = function () {
+        fetch("api/drafts/" + last.id, { method: "DELETE" }).catch(function () {});
+        $("draft-bar").style.display = "none";
+      };
+    }).catch(function () {});
   }
 
   // 手动记账
@@ -404,6 +529,11 @@
   });
 
   $("btn-parse").onclick = smartAdd;
+  $("btn-confirm").onclick = confirmSave;
+  $("btn-edit").onclick = startEditCard;
+  $("btn-cancel").onclick = cancelCard;
+  $("btn-edit-save").onclick = saveEditCard;
+  $("btn-edit-cancel").onclick = function () { if (CURRENT) showCard(CURRENT); };
   $("f-text").addEventListener("keydown", function (e) { if (e.key === "Enter") smartAdd(); });
   $("btn-add").onclick = manualAdd;
   $("f-amount").addEventListener("keydown", function (e) { if (e.key === "Enter") manualAdd(); });
@@ -422,7 +552,7 @@
   });
 
   $("f-date").value = todayStr();
-  loadMeta().then(refresh);
+  loadMeta().then(function () { refresh(); checkDraft(); });
 })();
 </script>
 </body>

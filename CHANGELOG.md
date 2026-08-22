@@ -3,6 +3,18 @@
 本文件记录 wuage-home 每个版本的更新内容，遵守 `docs/SPEC.md` 的规范。
 最新版本在最上面。数据契约详见 `docs/DATA_MODEL.md`。
 
+## [v0.1.6] - 2026-08-22
+
+### Added
+- AI 记账结果卡：解析后展示金额/日期/分类/成员/商户/备注 + 置信度；确认、修改（全字段可编辑）、取消。
+- 草稿机制：解析后未确认自动存草稿（24h 过期），刷新页面顶部提示可恢复/丢弃。
+- /api/parse 改为只解析（不再直接入库）；确认后经 POST /api/entries 保存（source=ai_parsed、raw_text、ai_confidence）。
+- GET /api/members；草稿 CRUD API（GET/POST/DELETE /api/drafts）。
+- parse.py 契约升级：识别成员（候选=家庭成员，默认本人）、商户、置信度；候选动态读库。
+
+### Changed
+- AI 记账流程由"解析即入库"升级为"解析 → 结果卡确认 → 入库"；面板版本 v0.1.6。
+
 ## [v0.1.5] - 2026-08-22
 
 ### Added

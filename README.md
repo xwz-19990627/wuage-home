@@ -33,6 +33,12 @@ python3.11 scripts/web.py            # 打开 http://127.0.0.1:8000
 
 数据统一在 `data/`（`WUAGE_DATA` 环境变量可改），迁移 = 拷走该目录。
 
+## 规范与合作方式
+
+- 项目规范（版本/迭代/记录/归档）：[docs/SPEC.md](docs/SPEC.md)
+- 更新记录：[CHANGELOG.md](CHANGELOG.md) ｜ 版本规划：[docs/VERSION_PLAN.md](docs/VERSION_PLAN.md)
+- 功能设计：[docs/specs/](docs/specs/) ｜ 完成归档：[docs/archive/](docs/archive/)
+
 ## 现状
 
 - [x] 项目脚手架初始化（git）

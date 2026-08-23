@@ -14,8 +14,8 @@
        │ 技能执行       │ 定时触发          │ 会话入口
        ▼               ▼                  ▼
  wuage 业务内核      数据/事实层       入口适配器
- scripts/ledger.py   data/ledger.db    DSH Web GUI
- web/ 数据视图        → 未来 facts/     （网关/手机已有）
+  app/ledger/         $WUAGE_HOME/data/ledger.db    DSH Web GUI
+  app/memory/…        memory.db / toolbox 文件       （网关/手机已有）
                                      未来 QQ bot 插件
 ```
 
@@ -41,8 +41,8 @@ DSH 优势：本地运行、现成 agent 循环与工具、DeepSeek 官方维护
 
 ## 可迁移性（重申）
 
-迁移到 NAS = 安装 DSH + 部署 wuage 仓库 + 拷贝 data/ + 配模型密钥 + 装技能/预设。
-DSH 本身是可迁移的 node 应用——中枢与业务内核一起搬家，仍然是一套可拷走的体系。
+迁移到 NAS = 安装 DSH + 部署 wuage 仓库 + 拷贝 $WUAGE_HOME（当前 /root/wuage 数据根）
++ 配模型密钥 + 装技能/预设。数据根已与代码仓库分离（2026-08-23）：升级代码不碰数据；
 
 ## 改造路径（v0.1.x 起步）
 

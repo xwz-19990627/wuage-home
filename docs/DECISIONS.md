@@ -8,8 +8,8 @@
 - **要求**：可迁移。代码与数据分离、配置外置、不依赖特定机器状态。
 - **落地**：
   - 代码仓库只含代码 + 配置模板（`config.example.yaml`），不落运行时数据。
-  - 数据目录由环境变量 `WUAGE_DATA` 指定，默认 `<repo>/data`。
-  - 迁移 = 拷贝 `WUAGE_DATA` 目录 + 重装依赖 + 改配置。后续可 Docker 化，或搬到 NAS。
+  - 数据目录由环境变量 `WUAGE_DATA` 指定，当前 `/root/wuage/data`（2026-08-23 起数据根 `$WUAGE_HOME`=/root/wuage 与代码仓库分离，迁移拷整体）。
+  - 迁移 = 拷贝数据根 + 重装依赖 + 改配置。后续可 Docker 化，或搬到 NAS。
 
 ## 2. 交互入口（MVP 做最简单的）
 
@@ -21,11 +21,12 @@
 ## 3. 数据存储
 
 - **MVP**：磁盘文件 + SQLite，本地优先。
-- **固定位置**：所有数据统一放 `WUAGE_DATA`（默认 `./data`），布局文档化：
-  - `data/ledger.db` — 账本
-  - `data/journal/` — 家庭日志/文本
-  - `data/news/` — 订阅与简报缓存
-  - `data/config.yaml` — 运行时配置（密钥等）
+- **固定位置**：所有数据统一放 `$WUAGE_HOME/data`（当前 /root/wuage/data），布局文档化：
+  - `data/ledger.db` — 账本（记账模块）
+  - `data/memory.db` — 家庭记忆（规划：facts 表 + FTS5）
+  - `data/toolbox/files/` — 工具箱文件（互传/导入）
+  - `data/backups/` — 每日备份（保留 7 份）
+  - 新模块数据一律落 data/ 下命名空间，禁止散落仓库根目录
 - **未来**：家庭 NAS 就位后，把存储层换成 NAS 挂载点 / 数据库，模块接口不变。
 
 ## 4. 模型
@@ -64,7 +65,7 @@
   不满足 harness 效果；解析、路由、多轮纠错、叙述都经中枢会话完成。
 - 否定自造 harness（LangGraph/Agents SDK）与 n8n/Dify 路线：重建轮子 / 工作流平台非所需。
 - 边界：**智能入中枢、事实入 wuage 数据层**；中枢扩展 = preset + skill + 插件 + 任务看板 cron。
-- 迁移：安装 DSH + 部署 wuage 仓库 + 拷贝 data/，整套体系可搬。
+- 迁移：安装 DSH + 部署 wuage 仓库 + 拷贝数据根 /root/wuage，整套体系可搬。
 
 
 

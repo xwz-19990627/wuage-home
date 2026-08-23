@@ -7,7 +7,7 @@ description: 一句话记账与查账：把口语消费转成结构化账本、�
 
 ## 定位
 
-wuage-home 的记账模块。数据在项目根的 `data/ledger.db`（环境变量 `WUAGE_DATA` 可覆盖，迁移=拷该目录）。
+wuage-home 的记账模块。数据在数据根 `$WUAGE_HOME/data/ledger.db`（当前 /root/wuage/data，环境变量 `WUAGE_DATA` 可覆盖，迁移=拷 /root/wuage）。
 脚本：`scripts/ledger.py`（纯 Python3 标准库，无第三方依赖）。
 
 若不确定当前目录，先 `git rev-parse --show-toplevel` 确认仓库根，所有命令以仓库根为 $REPO 执行。

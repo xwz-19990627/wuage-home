@@ -33,7 +33,9 @@ python3.11 scripts/web.py --port 17623            # 打开 http://127.0.0.1:1762
 #    python3.11 scripts/web.py --port 17623 --host 0.0.0.0
 ```
 
-数据统一在 `data/`（`WUAGE_DATA` 环境变量可改），迁移 = 拷走该目录。
+数据统一在数据根 `$WUAGE_HOME/data`（当前 `/root/wuage/data`，与代码仓库分离；`WUAGE_DATA` 环境变量可指定模块数据目录）。迁移 = 拷走 `/root/wuage`。
+
+**访问地址**：本机 `http://127.0.0.1:17623`；家人/远程 `https://47.99.118.10:8443/ledger/`（网关账号登录）；手机首次安装证书 `https://47.99.118.10:8443/setup/`。
 
 ## 规范与合作方式
 

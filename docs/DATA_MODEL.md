@@ -1,6 +1,6 @@
 # wuage-home · 数据模型 v2（v0.1.5 起）
 
-> SQLite 单库 `data/ledger.db`，迁移 = 拷贝该目录。schema 以 `scripts/ledger.py` 为准。
+> SQLite 单库 `$WUAGE_DATA/ledger.db`（当前 `/root/wuage/data/ledger.db`），迁移 = 拷贝数据根 `/root/wuage`。schema 以 `scripts/ledger.py` 为准。
 
 ## 表结构（v2）
 

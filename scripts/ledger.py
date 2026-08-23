@@ -10,7 +10,7 @@ v2 数据模型（v0.1.5 升级，PRD 对齐）：
   drafts        草稿（AI 结果未确认，24h 过期）
 旧 ledger 表保留为备份（legacy_ledger），migrate 后新数据只写 transactions。
 
-数据目录：$WUAGE_DATA，默认 <repo>/data —— 迁移 = 拷走该目录。
+数据目录：$WUAGE_DATA（当前 /root/wuage/data，与代码分离）—— 迁移 = 拷数据根 /root/wuage。
 """
 
 import argparse
@@ -26,6 +26,31 @@ DATA_DIR = Path(os.environ.get("WUAGE_DATA", str(REPO_ROOT / "data")))
 DB_PATH = DATA_DIR / "ledger.db"
 
 SEED_CATEGORIES = ["餐饮", "交通", "医疗", "购物", "教育", "娱乐", "居住", "通讯", "人情", "其他"]
+NATURES = {"fixed": "固定", "necessary": "必要", "discretionary": "非必要"}
+SEED_NATURE = {"居住": "fixed", "通讯": "fixed",
+               "餐饮": "necessary", "医疗": "necessary", "教育": "necessary", "交通": "necessary",
+               "购物": "discretionary", "娱乐": "discretionary", "人情": "discretionary", "其他": "discretionary"}
+
+
+NATURE_ALIAS = {"固定": "fixed", "必要": "necessary", "非必要": "discretionary",
+               "固定支出": "fixed", "必要支出": "necessary", "非必要支出": "discretionary"}
+
+
+def _parse_nature(x):
+    """性质枚举严格解析：fixed/necessary/discretionary（支持中文别名）；非法返回 None。"""
+    if not x:
+        return None
+    s = str(x).strip().lower()
+    if s in NATURES:
+        return s
+    if s in NATURE_ALIAS:
+        return NATURE_ALIAS[s]
+    return None
+
+
+def _nature_or_necessary(x):
+    n = _parse_nature(x)
+    return n if n else "necessary"
 CATEGORY_MIGRATE_MAP = {"医疗健康": "医疗", "育儿教育": "教育"}
 KINDS = {"expense", "income", "transfer"}
 SOURCES = {"manual", "ai_parsed", "ai_corrected"}
@@ -63,6 +88,7 @@ CREATE TABLE IF NOT EXISTS categories (
   color       TEXT,
   sort_order  INTEGER NOT NULL DEFAULT 0,
   is_archived INTEGER NOT NULL DEFAULT 0,
+  nature      TEXT NOT NULL DEFAULT 'necessary',
   UNIQUE(family_id, name)
 );
 CREATE TABLE IF NOT EXISTS transactions (
@@ -154,9 +180,24 @@ def row_to_dict(r):
     return d
 
 
+def _migrate_nature(conn):
+    """幂等：老库 categories 补 nature 列；首次迁移按种子映射回填。"""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(categories)").fetchall()}
+    if "nature" in cols:
+        return False
+    conn.execute("ALTER TABLE categories ADD COLUMN nature TEXT NOT NULL DEFAULT 'necessary'")
+    fam = conn.execute("SELECT id FROM families ORDER BY id LIMIT 1").fetchone()
+    if fam is not None:
+        for name, n in SEED_NATURE.items():
+            conn.execute("UPDATE categories SET nature=? WHERE family_id=? AND name=?", (n, fam["id"], name))
+    conn.commit()
+    return True
+
+
 def ensure_seed(conn):
     """幂等：默认家庭 / 本人成员 / 现金账户 / 种子 10 分类。"""
     init_db(conn)
+    _migrate_nature(conn)
     now = now_iso()
     fam = conn.execute("SELECT id FROM families ORDER BY id LIMIT 1").fetchone()
     if fam is None:
@@ -183,8 +224,8 @@ def ensure_seed(conn):
         row = conn.execute("SELECT id FROM categories WHERE family_id=? AND name=? LIMIT 1", (fam_id, name)).fetchone()
         if row is None:
             conn.execute(
-                "INSERT INTO categories (family_id, name, type, is_system, sort_order) VALUES (?,?,'expense',1,?)",
-                (fam_id, name, i))
+                "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature) VALUES (?,?,'expense',1,?,?)",
+                (fam_id, name, i, SEED_NATURE.get(name, "necessary")))
     conn.commit()
     return {"family_id": fam_id, "member_id": mem_id, "account_id": acc_id}
 
@@ -251,15 +292,25 @@ def category_by_name(conn, family_id, name, default_other=False):
 
 def list_categories(conn, family_id):
     rows = conn.execute(
-        "SELECT * FROM categories WHERE family_id=? AND is_archived=0 ORDER BY is_system DESC, sort_order, id",
+        "SELECT c.*, (SELECT COUNT(*) FROM transactions t WHERE t.category_id=c.id) AS cnt"
+        " FROM categories c WHERE c.family_id=? AND c.is_archived=0"
+        " ORDER BY c.is_system DESC, c.sort_order, c.id",
         (family_id,)).fetchall()
-    return [row_to_dict(r) for r in rows]
+    out = []
+    for r in rows:
+        d = row_to_dict(r)
+        n = d.get("nature") if d.get("nature") in NATURES else "necessary"
+        d["nature"] = n
+        d["nature_name"] = NATURES[n]
+        out.append(d)
+    return out
 
 
-def add_category(conn, family_id, name):
+def add_category(conn, family_id, name, nature=None):
     name = (name or "").strip()
     if not name:
         raise LedgerError("分类名不能为空")
+    nature = _nature_or_necessary(nature)
     row = conn.execute("SELECT * FROM categories WHERE family_id=? AND name=?",
                        (family_id, name)).fetchone()
     if row is not None:
@@ -270,8 +321,8 @@ def add_category(conn, family_id, name):
             return row["id"]
         raise LedgerError("分类已存在：{}".format(name))
     cur = conn.execute(
-        "INSERT INTO categories (family_id, name, type, is_system, sort_order) VALUES (?,?,'expense',0,999)",
-        (family_id, name))
+        "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature) VALUES (?,?,'expense',0,999,?)",
+        (family_id, name, nature))
     conn.commit()
     return cur.lastrowid
 
@@ -291,7 +342,20 @@ def rename_category(conn, family_id, cid, new_name):
     conn.commit()
 
 
-def delete_category(conn, family_id, name):
+def set_category_nature(conn, family_id, cid, nature):
+    nature = _parse_nature(nature)
+    if nature is None:
+        raise LedgerError("无效性质：{}（可选 固定/必要/非必要）".format(nature))
+    row = conn.execute("SELECT id FROM categories WHERE id=? AND family_id=?", (cid, family_id)).fetchone()
+    if row is None:
+        raise LedgerError("分类不存在")
+    conn.execute("UPDATE categories SET nature=? WHERE id=?", (nature, cid))
+    conn.commit()
+    return nature
+
+
+def delete_category(conn, family_id, name, merge_to=None):
+    """删除分类（软归档）。被引用时须 merge_to 指定迁往分类；迁移后再归档。"""
     row = conn.execute("SELECT * FROM categories WHERE family_id=? AND name=? AND is_archived=0",
                        (family_id, name)).fetchone()
     if row is None:
@@ -300,7 +364,13 @@ def delete_category(conn, family_id, name):
         raise LedgerError("种子分类不可删除（可改名；'其他'为兜底）")
     n = conn.execute("SELECT COUNT(*) c FROM transactions WHERE category_id=?", (row["id"],)).fetchone()["c"]
     if n > 0:
-        raise LedgerError("已有 {} 笔记录使用了该分类，无法删除；可改名".format(n))
+        if not merge_to:
+            raise LedgerError("已有 {} 笔记录使用了该分类；请指定迁往分类（merge_to）或选择改名".format(n))
+        target = conn.execute("SELECT id FROM categories WHERE family_id=? AND name=? AND is_archived=0",
+                              (family_id, merge_to)).fetchone()
+        if target is None or target["id"] == row["id"]:
+            raise LedgerError("迁移目标分类无效：{}".format(merge_to))
+        conn.execute("UPDATE transactions SET category_id=? WHERE category_id=?", (target["id"], row["id"]))
     conn.execute("UPDATE categories SET is_archived=1 WHERE id=?", (row["id"],))
     conn.commit()
     return row["id"]
@@ -660,6 +730,57 @@ def weekly_data(conn):
         "entries": rows,
     }
 
+def nature_data(conn, year=None, month=None):
+    """支出性质统计（expense）：按 固定/必要/非必要 聚合，支持年度与指定月份。"""
+    if year is None:
+        year = datetime.date.today().year
+    year = int(year)
+    fam_id = ensure_seed(conn)["family_id"]
+
+    def agg(from_, to_):
+        rows = conn.execute(
+            "SELECT COALESCE(c.nature,'necessary') AS nature, SUM(t.amount_cents) AS total_cents, COUNT(*) AS cnt"
+            " FROM transactions t LEFT JOIN categories c ON c.id=t.category_id"
+            " WHERE t.family_id=? AND t.kind='expense' AND t.date>=? AND t.date<=?"
+            " GROUP BY nature",
+            (fam_id, from_, to_)).fetchall()
+        got = {r["nature"] if r["nature"] in NATURES else "necessary": r for r in rows}
+        items, total = [], 0
+        for n, nm in (("fixed", "固定"), ("necessary", "必要"), ("discretionary", "非必要")):
+            r = got.get(n)
+            cents = r["total_cents"] if r else 0
+            cnt = r["cnt"] if r else 0
+            items.append({"nature": n, "name": nm, "total_cents": cents, "count": cnt})
+            total += cents
+        return items, total
+
+    def month_range(m):
+        ms = datetime.date(year, m, 1)
+        me = (datetime.date(year + 1, 1, 1) if m == 12 else datetime.date(year, m + 1, 1)) - datetime.timedelta(days=1)
+        return ms.isoformat(), me.isoformat()
+
+    year_items, year_total = agg("{}-01-01".format(year), "{}-12-31".format(year))
+    month_items, month_total, by_cat = None, None, []
+    if month:
+        month = int(month)
+        if not 1 <= month <= 12:
+            raise LedgerError("month must be 1..12")
+        ms, me = month_range(month)
+        month_items, month_total = agg(ms, me)
+        rows = conn.execute(
+            "SELECT COALESCE(c.name,'其他') AS name, COALESCE(c.nature,'necessary') AS nature,"
+            " SUM(t.amount_cents) AS total_cents, COUNT(*) AS cnt"
+            " FROM transactions t LEFT JOIN categories c ON c.id=t.category_id"
+            " WHERE t.family_id=? AND t.kind='expense' AND t.date>=? AND t.date<=?"
+            " GROUP BY c.name ORDER BY total_cents DESC",
+            (fam_id, ms, me)).fetchall()
+        by_cat = [{"name": r["name"], "nature": r["nature"] if r["nature"] in NATURES else "necessary",
+                   "total_cents": r["total_cents"], "count": r["cnt"]} for r in rows]
+    return {"year": year, "month": month,
+            "year_total_cents": year_total, "year_items": year_items,
+            "month_total_cents": month_total, "month_items": month_items,
+            "by_category_month": by_cat, "nature_names": dict(NATURES)}
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 def cmd_init(args, conn):
@@ -733,12 +854,20 @@ def cmd_categories(args, conn):
         delete_category(conn, fam_id, args.delete)
         print("ok: 已删除（软归档）：{}".format(args.delete))
         return
+    if args.set_nature:
+        row = conn.execute("SELECT id FROM categories WHERE family_id=? AND name=? AND is_archived=0",
+                           (fam_id, args.set_nature)).fetchone()
+        if row is None:
+            raise LedgerError("分类不存在：{}".format(args.set_nature))
+        n = set_category_nature(conn, fam_id, row["id"], args.nature)
+        print("ok: {} 性质 -> {}（{}）".format(args.set_nature, NATURES[n], n))
+        return
     if args.json:
         print(json.dumps(list_categories(conn, fam_id), ensure_ascii=False))
         return
     for c in list_categories(conn, fam_id):
         mark = "系统" if c["is_system"] else "自定义"
-        print("#{} {}  [{}]".format(c["id"], c["name"], mark))
+        print("#{} {}  [{}][{}]".format(c["id"], c["name"], mark, c.get("nature_name", "必要")))
 
 
 def cmd_members(args, conn):
@@ -833,7 +962,9 @@ def main():
     sp.set_defaults(fn=cmd_list)
     sp = sub.add_parser("categories", help="分类管理（LLM 不自动建类）")
     sp.add_argument("--add"); sp.add_argument("--rename"); sp.add_argument("--to")
-    sp.add_argument("--delete"); sp.add_argument("--json", action="store_true")
+    sp.add_argument("--delete"); sp.add_argument("--set-nature", metavar="名称", help="设置分类性质")
+    sp.add_argument("--nature", metavar="固定|必要|非必要", help="性质（与 --set-nature 搭配）")
+    sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_categories)
     sp = sub.add_parser("members", help="家庭成员")
     sp.add_argument("--add"); sp.add_argument("--relation"); sp.add_argument("--delete")

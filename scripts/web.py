@@ -5,8 +5,8 @@
   python3 scripts/web.py --port 17623        # 默认 127.0.0.1:17623（仅本机）
   python3 scripts/web.py --host 0.0.0.0     # 局域网可访问（注意：局域网内可见数据）
 
-环境变量：WUAGE_DATA 数据目录；WUAGE_WEB_HOST / WUAGE_WEB_PORT。
-API（读同一份 data/ledger.db）：
+环境变量：WUAGE_DATA 数据目录（当前 /root/wuage/data）；WUAGE_WEB_HOST / WUAGE_WEB_PORT。
+API（读同一份 $WUAGE_DATA/ledger.db）：
   GET  /                  → 面板页面
   GET  /api/categories    → 9 项类别
   GET  /api/entries       → 流水（?from=&to=&category=&kind=&limit=）
@@ -18,6 +18,7 @@ API（读同一份 data/ledger.db）：
 """
 
 import argparse
+import datetime
 import json
 import os
 import re
@@ -176,6 +177,25 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, {"members": ms})
             return
+        if path == "/api/nature":
+            q = self._query()
+            try:
+                year = int(q.get("year") or datetime.date.today().year)
+                month = int(q["month"]) if q.get("month") else None
+            except ValueError:
+                self._error(400, "year/month must be int")
+                return
+            conn = L.connect()
+            try:
+                d = L.nature_data(conn, year=year, month=month)
+            except L.LedgerError as e:
+                conn.close()
+                self._error(400, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(200, d)
+            return
         if path == "/api/drafts":
             conn = L.connect()
             try:
@@ -248,7 +268,7 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/api/categories":
                     if not body.get("name"):
                         raise L.LedgerError("name required")
-                    cid = L.add_category(conn, fam_id, body["name"])
+                    cid = L.add_category(conn, fam_id, body["name"], nature=body.get("nature"))
                     result = {"ok": True, "id": cid}
                 else:
                     if not body.get("name"):
@@ -302,9 +322,12 @@ class Handler(BaseHTTPRequestHandler):
                 except (ValueError, json.JSONDecodeError) as e:
                     raise L.LedgerError("bad body: {}".format(e))
                 if name_prefix == "categories":
-                    if not body.get("name"):
-                        raise L.LedgerError("name required")
-                    L.rename_category(conn, fam_id, rid, body["name"])
+                    if not body:
+                        raise L.LedgerError("缺少修改字段（name 或 nature）")
+                    if body.get("name"):
+                        L.rename_category(conn, fam_id, rid, body["name"])
+                    if "nature" in body:
+                        L.set_category_nature(conn, fam_id, rid, body["nature"])
                 else:
                     raise L.LedgerError("members 改名暂不支持")
             except L.LedgerError as e:
@@ -355,7 +378,9 @@ class Handler(BaseHTTPRequestHandler):
                 if row is None:
                     return False
                 if name_prefix == "categories":
-                    L.delete_category(conn, fam_id, row["name"])
+                    q = parse_qs(urlparse(self.path).query)
+                    merge_to = (q.get("merge_to") or [None])[0]
+                    L.delete_category(conn, fam_id, row["name"], merge_to)
                 else:
                     L.delete_member(conn, fam_id, row["name"])
             except L.LedgerError as e:

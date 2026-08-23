@@ -7,8 +7,8 @@
 | 服务 | 端口 | 说明 | 托管 |
 | --- | --- | --- | --- |
 | dsh web | 127.0.0.1:3081 | DSH 中枢 Web GUI | systemd: dsh-public.service |
-| 公网网关 | 0.0.0.0:8443 | 登录认证 + 反代（/ 到 3081，/ledger/ 到 8000） | systemd: dsh-public.service |
-| wuage 面板 | 127.0.0.1:17623 | 家庭账本面板（读写 data/ledger.db） | systemd: wuage-panel.service |
+| 公网网关 | 0.0.0.0:8443 | 登录认证 + 反代（/ 到 3081，/ledger/ 到 17623）| systemd: dsh-public.service |
+| wuage 面板 | 127.0.0.1:17623 | 家庭账本面板（读写 $WUAGE_DATA=/root/wuage/data/ledger.db）| systemd: wuage-panel.service |
 
 ## wuage-panel.service
 
@@ -37,6 +37,6 @@ journalctl -u wuage-panel -f      # 日志
 ## 迁移到 NAS（按快照思路）
 
 1. 装同版本 DSH（dsh-public.service 对应配置）与 python3.11。
-2. 部署 wuage 仓库同 commit，拷入 data/。
+2. 部署 wuage 仓库同 commit，拷入数据根 `/root/wuage`（data/ledger.db + backups/）。
 3. 建 wuage-panel.service，重做网关 /ledger/ 路由（本文件逻辑）。
 4. 冒烟：bash scripts/selftest.sh。

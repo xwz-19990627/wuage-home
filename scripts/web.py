@@ -30,6 +30,7 @@ from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import ledger as L
 import parse as P
+import import_bills as IB
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX_PATH = os.path.join(REPO_ROOT, "web", "index.html")
@@ -205,11 +206,62 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, {"drafts": ds})
             return
+        if path == "/api/import/files":
+            files = []
+            if IB.UPLOAD_DIR.exists():
+                for p in sorted(IB.UPLOAD_DIR.iterdir()):
+                    if not p.is_file():
+                        continue
+                    plat = IB.detect_platform(p.name)
+                    if plat is None and p.suffix.lower() not in (".xlsx", ".csv"):
+                        continue
+                    files.append({
+                        "name": p.name,
+                        "size": p.stat().st_size,
+                        "platform": plat or "unknown",
+                        "platform_name": IB.PLATFORM_NAME.get(plat, "未知"),
+                    })
+            self._json(200, {"dir": str(IB.UPLOAD_DIR), "files": files})
+            return
         self._error(404, "not found: " + path)
 
     # ── POST ───────────────────────────────────────────────────────────────
     def do_POST(self):
         path = urlparse(self.path).path
+        if path in ("/api/import/preview", "/api/import/run"):
+            try:
+                body = self._read_body()
+            except (ValueError, json.JSONDecodeError) as e:
+                self._error(400, "bad body: {}".format(e))
+                return
+            fname = (body.get("file") or "").strip()
+            if not fname or "/" in fname or "\\" in fname or ".." in fname:
+                self._error(400, "file 参数非法")
+                return
+            fpath = IB.UPLOAD_DIR / fname
+            if not fpath.is_file():
+                self._error(404, "文件不存在：{}".format(fname))
+                return
+            try:
+                records, skipped = IB.normalize_all(str(fpath))
+            except ValueError as e:
+                self._error(400, str(e))
+                return
+            conn = L.connect()
+            try:
+                prev = IB.build_preview(records, skipped, conn)
+                if path == "/api/import/run":
+                    member = (body.get("member") or "本人").strip()
+                    result = IB.do_import(records, conn, member=member)
+                    prev["imported"] = result["imported"]
+                    prev["dup_skipped"] = result["dup"]
+            except L.LedgerError as e:
+                self._error(400, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(200, prev)
+            return
         if path == "/api/parse":
             try:
                 body = self._read_body()
@@ -268,7 +320,8 @@ class Handler(BaseHTTPRequestHandler):
                 if path == "/api/categories":
                     if not body.get("name"):
                         raise L.LedgerError("name required")
-                    cid = L.add_category(conn, fam_id, body["name"], nature=body.get("nature"))
+                    cid = L.add_category(conn, fam_id, body["name"], nature=body.get("nature"),
+                                         parent=body.get("parent"))
                     result = {"ok": True, "id": cid}
                 else:
                     if not body.get("name"):

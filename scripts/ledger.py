@@ -25,11 +25,15 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = Path(os.environ.get("WUAGE_DATA", str(REPO_ROOT / "data")))
 DB_PATH = DATA_DIR / "ledger.db"
 
-SEED_CATEGORIES = ["餐饮", "交通", "医疗", "购物", "教育", "娱乐", "居住", "通讯", "人情", "其他"]
+# 10 种子 → 16（2026-08-25：+理财/保险/服饰/美妆/宠物(账单画像)、+工资(主动收入月度记录)）
+SEED_CATEGORIES = ["餐饮", "交通", "医疗", "购物", "教育", "娱乐", "居住", "通讯", "人情",
+                   "服饰", "美妆", "宠物", "理财", "保险", "工资", "其他"]
 NATURES = {"fixed": "固定", "necessary": "必要", "discretionary": "非必要"}
-SEED_NATURE = {"居住": "fixed", "通讯": "fixed",
+SEED_NATURE = {"居住": "fixed", "通讯": "fixed", "保险": "fixed",
                "餐饮": "necessary", "医疗": "necessary", "教育": "necessary", "交通": "necessary",
-               "购物": "discretionary", "娱乐": "discretionary", "人情": "discretionary", "其他": "discretionary"}
+               "购物": "discretionary", "娱乐": "discretionary", "人情": "discretionary",
+               "服饰": "discretionary", "美妆": "discretionary", "宠物": "discretionary",
+               "理财": "discretionary", "其他": "discretionary"}
 
 
 NATURE_ALIAS = {"固定": "fixed", "必要": "necessary", "非必要": "discretionary",
@@ -53,7 +57,7 @@ def _nature_or_necessary(x):
     return n if n else "necessary"
 CATEGORY_MIGRATE_MAP = {"医疗健康": "医疗", "育儿教育": "教育"}
 KINDS = {"expense", "income", "transfer"}
-SOURCES = {"manual", "ai_parsed", "ai_corrected"}
+SOURCES = {"manual", "ai_parsed", "ai_corrected", "import"}
 CHANNELS = {"manual", "voice", "wechat", "import"}
 
 SCHEMA = """
@@ -108,6 +112,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   ai_confidence  REAL,
   corrected_from INTEGER,
   tags           TEXT NOT NULL DEFAULT '[]',
+  external_id    TEXT,
   created_at     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tx_date ON transactions(date);
@@ -194,10 +199,23 @@ def _migrate_nature(conn):
     return True
 
 
+def _migrate_external(conn):
+    """幂等：老库 transactions 补 external_id 列；唯一索引统一在此创建（导入去重）。"""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(transactions)").fetchall()}
+    if "external_id" not in cols:
+        conn.execute("ALTER TABLE transactions ADD COLUMN external_id TEXT")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_external"
+                 " ON transactions(external_id)"
+                 " WHERE external_id IS NOT NULL AND external_id != ''")
+    conn.commit()
+    return True
+
+
 def ensure_seed(conn):
     """幂等：默认家庭 / 本人成员 / 现金账户 / 种子 10 分类。"""
     init_db(conn)
     _migrate_nature(conn)
+    _migrate_external(conn)
     now = now_iso()
     fam = conn.execute("SELECT id FROM families ORDER BY id LIMIT 1").fetchone()
     if fam is None:
@@ -223,9 +241,10 @@ def ensure_seed(conn):
     for i, name in enumerate(SEED_CATEGORIES):
         row = conn.execute("SELECT id FROM categories WHERE family_id=? AND name=? LIMIT 1", (fam_id, name)).fetchone()
         if row is None:
+            ctype = "income" if name == "工资" else "expense"
             conn.execute(
-                "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature) VALUES (?,?,'expense',1,?,?)",
-                (fam_id, name, i, SEED_NATURE.get(name, "necessary")))
+                "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature) VALUES (?,?,?,1,?,?)",
+                (fam_id, name, ctype, i, SEED_NATURE.get(name, "necessary")))
     conn.commit()
     return {"family_id": fam_id, "member_id": mem_id, "account_id": acc_id}
 
@@ -306,7 +325,8 @@ def list_categories(conn, family_id):
     return out
 
 
-def add_category(conn, family_id, name, nature=None):
+def add_category(conn, family_id, name, nature=None, parent=None):
+    """新增分类；parent=父分类名（二级分类，parent_id 预留）。"""
     name = (name or "").strip()
     if not name:
         raise LedgerError("分类名不能为空")
@@ -320,9 +340,19 @@ def add_category(conn, family_id, name, nature=None):
             conn.commit()
             return row["id"]
         raise LedgerError("分类已存在：{}".format(name))
+    pid = None
+    if parent:
+        prow = conn.execute("SELECT id FROM categories WHERE family_id=? AND name=? AND is_archived=0",
+                            (family_id, parent)).fetchone()
+        if prow is None:
+            raise LedgerError("父分类不存在：{}".format(parent))
+        pid = prow["id"]
+    if pid is not None and name == parent:
+        raise LedgerError("子分类不能与父分类同名")
     cur = conn.execute(
-        "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature) VALUES (?,?,'expense',0,999,?)",
-        (family_id, name, nature))
+        "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature, parent_id)"
+        " VALUES (?,?,'expense',0,999,?,?)",
+        (family_id, name, nature, pid))
     conn.commit()
     return cur.lastrowid
 
@@ -498,15 +528,34 @@ def add_record(conn, record):
     cur = conn.execute(
         """INSERT INTO transactions
            (family_id, account_id, member_id, category_id, amount_cents, kind, date, remark,
-            merchant, source, channel, raw_text, ai_confidence, corrected_from, tags, created_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            merchant, source, channel, raw_text, ai_confidence, corrected_from, tags,
+            external_id, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (fam_id, acc_id, mid, cid, amount, kind, date_s,
          (record.get("remark") or record.get("note") or "").strip(),
          record.get("merchant"), source, channel, record.get("raw_text"),
          record.get("ai_confidence"), record.get("corrected_from"),
-         json.dumps(tags, ensure_ascii=False), now_iso()))
+         json.dumps(tags, ensure_ascii=False),
+         record.get("external_id"), now_iso()))
     conn.commit()
     return tx_to_dict(conn, cur.lastrowid)
+
+
+def existing_external_ids(conn, ids):
+    """给定 external_id 列表，返回其中已入库的集合（导入去重，分批防 SQLite 变量上限）。"""
+    ids = [i for i in (ids or []) if i]
+    if not ids:
+        return set()
+    out = set()
+    step = 500  # SQLite 默认变量上限 999
+    for i in range(0, len(ids), step):
+        chunk = ids[i:i + step]
+        marks = ",".join("?" * len(chunk))
+        rows = conn.execute(
+            "SELECT external_id FROM transactions WHERE external_id IN ({})".format(marks),
+            chunk).fetchall()
+        out.update(r["external_id"] for r in rows)
+    return out
 
 
 def update_record(conn, tid, fields):

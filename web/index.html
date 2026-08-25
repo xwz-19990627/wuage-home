@@ -24,6 +24,55 @@
   .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   input, select { padding:8px 10px; border:1px solid var(--line); border-radius:12px; background:#fff; font-size:14px; color:var(--ink); }
   input:focus, select:focus { outline:2px solid #F3E0BE; }
+  /* 移动端紧凑选择器：月份 ‹ › 导航 + 分类/成员胶囊 chips */
+  .mn-nav { display:inline-flex; align-items:center; gap:3px; margin-left:6px; }
+  .mn-btn { width:26px; height:26px; border-radius:999px; border:1px solid var(--line); background:#fff; font-size:16px; line-height:1; cursor:pointer; color:var(--ink); padding:0; }
+  .mn-btn:active { background:#F3E0BE; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 2px; }
+  .chip { border:1px solid var(--line); background:#fff; border-radius:999px; padding:4px 12px; font-size:12px; color:var(--ink); cursor:pointer; }
+  .chip.on { background:#B7791F; border-color:#B7791F; color:#fff; }
+  .chip.all { border-style:dashed; }
+  .seg button { padding:5px 10px; font-size:12px; }
+  /* 底部滚轮选择器（wheel picker，移动端友好） */
+  .pk-overlay { position:fixed; inset:0; background:rgba(40,32,18,.38); z-index:999; display:flex; align-items:flex-end; }
+  .pk-sheet { width:100%; background:#fff; border-radius:18px 18px 0 0; padding:6px 0 calc(10px + env(safe-area-inset-bottom)); animation:pkUp .18s ease-out; }
+  @keyframes pkUp { from{transform:translateY(40%);opacity:.4} to{transform:none;opacity:1} }
+  .pk-head { display:flex; align-items:center; justify-content:space-between; padding:10px 18px 6px; }
+  .pk-head b { font-size:14px; color:var(--ink); }
+  .pk-close { border:none; background:none; font-size:20px; color:#9A937F; cursor:pointer; padding:0 4px; }
+  .pk-roller { height:min(46vh,264px); overflow:hidden; position:relative; margin:2px 0 8px; -webkit-mask-image:linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent); mask-image:linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent); }
+  .pk-list { transition:transform .22s cubic-bezier(.18,.7,.28,1); will-change:transform; }
+  .pk-item { height:44px; line-height:44px; text-align:center; font-size:16px; color:#6E6753; }
+  .pk-item.mid { font-size:18px; font-weight:700; color:var(--ink); }
+  .pk-btns { display:flex; gap:10px; padding:0 16px; }
+  .pk-btns button { flex:1; padding:10px 0; border-radius:12px; font-size:14px; font-weight:600; }
+  .pk-btn { width:100%; display:block; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:#fff; text-align:left; font-size:15px; color:var(--ink); cursor:pointer; min-height:46px; letter-spacing:.3px; }
+  .pk-btn::after { content:"▾"; float:right; color:#9A937F; }
+  /* 分类网格选择器（不用滚轮，一屏全见） */
+  .cat-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:6px 14px 4px; max-height:min(58vh,420px); overflow-y:auto; }
+  .cat-cell { border:1px solid var(--line); background:#FDFCF9; border-radius:14px; padding:10px 2px 8px; text-align:center; cursor:pointer; }
+  .cat-cell:active { transform:scale(.96); }
+  .cat-cell .cd { display:block; width:34px; height:34px; border-radius:50%; margin:0 auto 5px; border:1px solid rgba(0,0,0,.06); }
+  .cat-cell .cn { font-size:12px; color:var(--ink); display:block; }
+  /* 分类列表分层 */
+  .cat-sub { padding-left:22px; }
+
+  /* 概览图表：环形 + 近7日柱状 + 分类排行 */
+  .pie { position:relative; }
+  .pie::after { content:""; position:absolute; inset:27%; border-radius:50%; background:#fff; }
+  .pie-c { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:1; font-size:20px; font-weight:800; color:var(--ink); }
+  .pie-c small { font-size:11px; color:var(--sub); font-weight:400; }
+  .bars { display:flex; align-items:flex-end; gap:6px; height:96px; padding:6px 2px 0; }
+  .bar { flex:1; background:linear-gradient(180deg,#D99025,#E8B66B); border-radius:6px 6px 2px 2px; min-height:2px; position:relative; }
+  .bar span { position:absolute; top:-15px; left:50%; transform:translateX(-50%); font-size:10px; color:var(--sub); white-space:nowrap; }
+  .bar i { position:absolute; bottom:-17px; left:50%; transform:translateX(-50%); font-style:normal; font-size:10px; color:#9A937F; }
+  .rank { display:flex; flex-direction:column; gap:5px; margin-top:8px; }
+  .rank-row { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .rank-row .rk { width:18px; height:18px; border-radius:6px; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none; }
+  .rank-row .rn { flex:1 0 60px; color:var(--ink); }
+  .rank-row .rb { flex:1; height:8px; border-radius:999px; background:#F4EFE4; overflow:hidden; }
+  .rank-row .rb i { display:block; height:100%; border-radius:999px; }
+  .rank-row .ra { font-size:12px; color:var(--sub); font-variant-numeric:tabular-nums; }
   button { border:0; border-radius:12px; padding:9px 14px; font-size:14px; cursor:pointer; }
   button:active { transform:scale(.97); }
   .primary { background:var(--accent); color:#fff; }
@@ -99,9 +148,9 @@
     <div class="card">
       <h2>我的家庭</h2>
       <div class="hub-grid">
-        <div class="hub-card" data-goto="ledger"><div class="hc-ico">📒</div><div class="hc-name">记账</div><div class="hc-sub">AI / 账单 / 财务 / 家庭</div></div>
+        <div class="hub-card" data-goto="ai"><div class="hc-ico">📒</div><div class="hc-name">记账</div><div class="hc-sub">AI / 账单 / 财务 / 分类</div></div>
         <div class="hub-card" id="hub-qa"><div class="hc-ico">💬</div><div class="hc-name">问问家里</div><div class="hc-sub">问答 · 规划中</div></div>
-        <div class="hub-card" id="hub-tool"><div class="hc-ico">🧰</div><div class="hc-name">工具箱</div><div class="hc-sub">文件互传 · 开发中</div></div>
+        <div class="hub-card" id="hub-tool"><div class="hc-ico">🧰</div><div class="hc-name">工具箱</div><div class="hc-sub">文件互传 · 已上线</div></div>
       </div>
     </div>
   </div>
@@ -109,7 +158,7 @@
   <!-- 记账：工作区概览 -->
   <div id="view-ledger" class="view">
     <div class="card">
-      <div class="hint">本月支出 <select id="h-month" style="padding:4px;font-size:12px;margin-left:4px"></select></div>
+      <div class="hint"><span class="mn-nav"><button class="mn-btn" id="h-prev">‹</button><span id="h-month">--</span><button class="mn-btn" id="h-next">›</button></span></div>
       <div class="big" id="d-total">--</div>
       <div class="meta-row"><span class="d-avg" id="d-avg"></span><span class="cmp" id="d-mom"></span><span class="cmp" id="d-yoy"></span></div>
       <div style="margin-top:10px">
@@ -117,9 +166,13 @@
       </div>
     </div>
     <div class="card">
-      <h2>本月分类占比</h2>
-      <div class="pie" id="d-pie"></div>
-      <div class="legend" id="d-legend"></div>
+      <h2>支出构成</h2>
+      <div class="pie" id="d-pie"><div class="pie-c" id="d-pie-c"></div></div>
+      <div class="rank" id="d-rank"></div>
+    </div>
+    <div class="card">
+      <h2>近7日支出</h2>
+      <div class="bars" id="d-bars"></div>
     </div>
   </div>
 
@@ -128,8 +181,8 @@
     <div class="card" id="ai-section">
       <h2>🤖 AI 记账</h2>
       <div class="row">
-        <input id="f-text" type="text" style="flex:1;min-width:240px" placeholder="一句话记账，如：今天妈妈买菜花了86元">
-        <button class="primary" id="btn-parse">解析</button>
+        <input id="f-text" type="text" style="flex:1;min-width:0;font-size:15px" placeholder="一句话记账，如：午餐20">
+        <button class="primary" id="btn-parse" style="flex:none">解析</button>
       </div>
       <div class="hint" id="parse-hint"></div>
       <div id="ai-card" class="card" style="display:none">
@@ -175,17 +228,36 @@
         <button class="primary" id="btn-add">保存</button>
       </div>
     </div>
+    <div class="card">
+      <h2>分类管理 <button class="ghost" style="float:right;padding:4px 10px" id="btn-new-cat">+ 添加分类</button></h2>
+      <div class="hint" style="margin-bottom:6px">行操作：✎ 改名 / +子 添加子分类 / 删（历史流水迁移到「其他」）。记账按「固定 / 必要 / 非必要」归类。</div>
+      <div id="n-cat-form" style="display:none;margin-bottom:8px;padding:10px;background:#FDFCF9;border:1px dashed var(--line);border-radius:12px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <input id="nc-name" type="text" placeholder="分类名" style="flex:1;min-width:130px">
+          <select id="nc-parent" style="max-width:150px"><option value="">顶级分类</option></select>
+          <select id="nc-nature" style="max-width:110px"></select>
+          <button class="primary" id="btn-cat-save">保存</button>
+          <button class="ghost" id="btn-cat-cancel">取消</button>
+          <input type="hidden" id="nc-edit-id">
+        </div>
+      </div>
+      <div class="hint" id="n-cat-form-tip" style="display:none;margin-bottom:6px"></div>
+      <div id="n-catlist"></div>
+    </div>
   </div>
 
   <!-- 账单 -->
   <div id="view-bills" class="view">
     <div class="card">
       <h2>账单</h2>
-      <div class="row" style="margin-bottom:6px">
-        <select id="f-range"><option value="all">全部</option><option value="today">今天</option><option value="7d">近7天</option><option value="month">本月</option><option value="custom">自定义</option></select>
-        <input id="f-from" type="date" style="display:none"> ~ <input id="f-to" type="date" style="display:none">
-        <select id="f-cat"></select>
-        <select id="f-mem"></select>
+      <div style="margin-bottom:6px">
+        <div class="seg" id="f-range-seg">
+          <button data-v="all" class="on">全部</button><button data-v="today">今天</button>
+          <button data-v="7d">近7天</button><button data-v="month">本月</button><button data-v="custom">自定义</button>
+        </div>
+        <span id="f-custom-wrap" style="display:none"><input id="f-from" type="date" style="padding:4px"> ~ <input id="f-to" type="date" style="padding:4px"></span>
+        <div class="chips" id="f-cat-chips"></div>
+        <div class="chips" id="f-mem-chips"></div>
       </div>
       <table><thead><tr><th>日期</th><th>分类</th><th class="num">金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="bill-rows"></tbody></table>
       <div class="hint" style="text-align:right" id="bill-total"></div>
@@ -206,34 +278,11 @@
       <div id="n-year-sec"></div>
     </div>
     <div class="card">
-      <h2>分类管理 <button class="ghost" style="float:right;padding:4px 10px" id="btn-new-cat">+ 新增</button></h2>
-      <div class="hint" style="margin-bottom:6px">记账按分类自动归类到「固定 / 必要 / 非必要」；删除被使用的分类会把历史流水迁移到「其他」。</div>
-      <div id="n-cat-form" class="row" style="display:none;margin-bottom:8px;padding:10px;background:#FDFCF9;border:1px dashed var(--line);border-radius:12px">
-        <input id="nc-name" type="text" placeholder="新分类名" style="flex:1;min-width:120px">
-        <select id="nc-nature"></select>
-        <button class="primary" id="btn-cat-save">保存</button>
-        <button class="ghost" id="btn-cat-cancel">取消</button>
-      </div>
-      <div id="n-catlist"></div>
+      <h2>分类管理</h2>
+      <div class="hint">分类维护已移到「AI 记账」页底部（手动录入下方）：添加 / 改名 / 子分类 / 性质。</div>
     </div>
   </div>
 
-  <!-- 家庭 -->
-  <div id="view-family" class="view">
-    <div class="card">
-      <h2>家庭成员 <button class="ghost" style="float:right;padding:4px 10px" id="btn-new-member">+ 新增</button></h2>
-      <div id="member-list"></div>
-    </div>
-    <div class="card" id="member-form" style="display:none">
-      <h2>新增成员</h2>
-      <div class="row">
-        <input id="m-name" type="text" placeholder="姓名（必填）">
-        <input id="m-relation" type="text" placeholder="关系（选填）">
-        <button class="primary" id="btn-member-save">保存</button>
-        <button class="ghost" id="btn-member-cancel">取消</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <div id="user-pick" style="display:none">
@@ -246,18 +295,17 @@
 </div>
 
 <nav id="tabbar">
-  <button class="on" data-view="ledger">概览</button>
-  <button data-view="ai">AI记账</button>
+  <button class="on" data-view="ai">AI记账</button>
+  <button data-view="ledger">概览</button>
   <button data-view="bills">账单</button>
   <button data-view="finance">财务</button>
-  <button data-view="family">家庭</button>
 </nav>
 
 <script>
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
-  var CATS = [], MEMS = [], CURRENT = null, DRAFT_ID = null;
+  var CATS = [], MEMS = [], CURRENT = null, DRAFT_ID = null, TOP_CATS = [];
   var COLORS = ["#D99025","#4A6FA5","#2E9E6B","#C0565A","#8B5E9E","#0E9AA7","#D97706","#A5678F","#6B7280","#9A937F"];
   var toastTimer = null;
 
@@ -332,9 +380,10 @@
     $("tabbar").style.display=isHome?"none":"";
     $("btn-home").style.display=isHome?"none":"";
     if(isHome){var g=$("d-greet");if(g)g.textContent="🏠 吾家 · "+(getDevUser()||"家人");}
+    if(id==="ai") loadNatureCats();
     if(id==="ledger") loadDashboard();
     if(id==="bills") loadBills();
-    if(id==="family") loadFamily();
+
     if(id==="finance") loadFinance();
     try{
       var hh=(id==="home")?"#/home":(id==="ledger"?"#/ledger":"#/ledger/"+id);
@@ -351,28 +400,47 @@
     var tb=ev.target.closest?ev.target.closest("#tabbar button"):null;
     if(tb){return;}
   });
-  ["ledger","ai","bills","family","finance"].forEach(function(v){
+  ["ai","ledger","bills","finance"].forEach(function(v){
     document.querySelector("#tabbar button[data-view="+v+"]").addEventListener("click",function(){showView(v);});
   });
 
+  function renderChips(box,opts,pick){
+    box.innerHTML="";
+    opts.forEach(function(o){
+      var b=document.createElement("button");
+      b.className="chip"+(o.value===""?" all":"")+(o.active?" on":"");
+      b.textContent=o.label;
+      b.onclick=function(){
+        opts.forEach(function(x){x.active=(x.value===o.value);});
+        renderChips(box,opts,pick);
+        pick(o.value);
+      };
+      box.appendChild(b);
+    });
+  }
   function loadMeta(){
     return fetch("api/health").then(function(r){return r.json();}).then(function(h){
       CATS=h.categories||[];
-      fillSelect($("f-cat"),[{value:"",text:"全部类别"}].concat(CATS),"");
       fillSelect($("f-category"),CATS,"餐饮");
+      CAT_CHIPS=[{value:"",label:"全部类别",active:true}].concat(CATS.map(function(c){return {value:c,label:c,active:false};}));
+      renderChips($("f-cat-chips"),CAT_CHIPS,function(v){B_CAT=v;loadBills();});
       return fetch("api/members").then(function(m){return m.json();}).then(function(d){
         MEMS=(d.members||[]).map(function(x){return x.name;});
-        fillSelect($("f-mem"),[{value:"",text:"全部成员"}].concat(MEMS),"");
         fillSelect($("f-member"),MEMS,getDevUser());
+        MEM_CHIPS=[{value:"",label:"全部成员",active:true}].concat(MEMS.map(function(m){return {value:m,label:m,active:false};}));
+        renderChips($("f-mem-chips"),MEM_CHIPS,function(v){B_MEM=v;loadBills();});
       });
     }).catch(function(e){$("ver").textContent="连接后端失败："+e;});
   }
 
-  // ── 首页 Dashboard ────────────────────────────────────────────────
+  // ── 首页 Dashboard（月份用 ‹ › 箭头切换） ──────────────────────────
+  var H_OFF=0;
+  function renderHMonth(){
+    var now=new Date(),d=new Date(now.getFullYear(),now.getMonth()+H_OFF,1);
+    $("h-month").textContent=d.getFullYear()+"年"+(d.getMonth()+1)+"月";
+  }
   function loadDashboard(){
-    var sel=$("h-month"),opt=sel.options[sel.selectedIndex];
-    var off=(opt&&opt.dataset)?parseInt(opt.dataset.offset,10):0;
-    if(isNaN(off))off=0;
+    var off=H_OFF||0;
     fetch("api/dashboard?offset="+off).then(function(r){return r.json();}).then(function(d){
       $("d-total").innerHTML=yuan(d.month_total_cents)+" <small>元</small>";
       var days=d.days_elapsed||1;
@@ -385,21 +453,145 @@
       else{yl.innerHTML="同比 "+(d.yoy_pct>0?"↑":"↓")+Math.abs(d.yoy_pct)+"%";yl.className="cmp "+(d.yoy_pct>0?"up":"down");yl.title="去年同月（"+d.last_year_month+"）支出 "+yuan(d.last_year_total_cents)+" 元";}
       var total=d.month_total_cents||1;
       var shares=d.cat_share||[];
+      $("d-pie-c").innerHTML=yuan(d.month_total_cents)+"<small>本月支出</small>";
       if(!shares.length){
         $("d-pie").style.background="#F4EFE4";
-        $("d-legend").innerHTML=emptyGuide("本月还没有记账");
+        $("d-rank").innerHTML=emptyGuide("本月还没有记账");
+        $("d-bars").innerHTML="";
         return;
       }
-      var grad=[],acc=0,lh="";
-      shares.forEach(function(s,i){var p=Math.round(s.total_cents/total*100);grad.push(COLORS[i%COLORS.length]+" "+acc+"% "+(acc+p)+"%");lh+="<div><span style='display:inline-block;width:9px;height:9px;border-radius:2px;background:"+COLORS[i%COLORS.length]+"'></span> "+esc(s.name)+" <b>"+yuan(s.total_cents)+" 元</b>（"+p+"%）</div>";acc+=p;});
+      var grad=[],acc=0,rk="";
+      shares.forEach(function(s,i){
+        var p=Math.round(s.total_cents/total*100);
+        grad.push(COLORS[i%COLORS.length]+" "+acc+"% "+(acc+p)+"%");acc+=p;
+        rk+="<div class='rank-row'><span class='rk' style='background:"+COLORS[i%COLORS.length]+"'>"+(i+1)+"</span><span class='rn'>"+esc(s.name)+"</span><span class='rb'><i style='width:"+p+"%;background:"+COLORS[i%COLORS.length]+"'></i></span><span class='ra'>"+yuan(s.total_cents)+" · "+p+"%</span></div>";
+      });
       $("d-pie").style.background="conic-gradient("+grad.join(",")+")";
-      $("d-legend").innerHTML=lh;
+      $("d-rank").innerHTML=rk;
+      // 近7日柱状（随所选月窗口）
+      var b7=d.last7||[],mx=1,bt="";
+      b7.forEach(function(x){ if((x.total_cents||0)>mx)mx=x.total_cents; });
+      b7.forEach(function(x){
+        var h=Math.round((x.total_cents||0)/mx*100); if(h<2)h=2;
+        bt+="<div class='bar' style='height:"+h+"%' title='"+x.date+"'><span>"+(x.total_cents?yuan(x.total_cents):"")+"</span><i>"+x.date.slice(5)+"</i></div>";
+      });
+      $("d-bars").innerHTML=bt;
     }).catch(function(e){$("d-total").textContent="加载失败";});
   }
   function initMonthSelect(){
-    var sel=$("h-month"),now=new Date();
-    for(var i=11;i>=0;i--){var d=new Date(now.getFullYear(),now.getMonth()-i,1);var o=document.createElement("option");o.value=d.toISOString().slice(0,7);o.textContent=d.getFullYear()+"年"+(d.getMonth()+1)+"月";o.dataset.offset=String(-i);if(i===0)o.selected=true;sel.appendChild(o);}
-    sel.addEventListener("change",function(){loadDashboard();});
+    renderHMonth();
+    $("h-prev").onclick=function(){H_OFF--;renderHMonth();loadDashboard();};
+    $("h-next").onclick=function(){H_OFF++;renderHMonth();loadDashboard();};
+  }
+
+  // ── 底部滚轮选择器（wheel picker，替代原生 select） ────────────────
+  var WHEEL=null;
+  function closeWheel(){ if(WHEEL){ WHEEL.ov.remove(); WHEEL=null; } }
+  function openWheelPicker(opts){
+    closeWheel();
+    var STEP=44, vis=6, items=(opts&&opts.items)||[], idx=0;
+    for(var i=0;i<items.length;i++){ if(items[i].v===opts.value){ idx=i; break; } }
+    var ov=document.createElement("div"); ov.className="pk-overlay";
+    var sheet=document.createElement("div"); sheet.className="pk-sheet";
+    sheet.innerHTML="<div class='pk-head'><b>"+esc((opts&&opts.title)||"请选择")+"</b><button class='pk-close'>×</button></div>";
+    var roller=document.createElement("div"); roller.className="pk-roller";
+    var list=document.createElement("div"); list.className="pk-list";
+    items.forEach(function(it){
+      var d=document.createElement("div"); d.className="pk-item"; d.textContent=it.t;
+      d.addEventListener("click",function(){ pick(it.v); });
+      list.appendChild(d);
+    });
+    roller.appendChild(list); sheet.appendChild(roller);
+    var btns=document.createElement("div"); btns.className="pk-btns";
+    var ok=document.createElement("button"); ok.className="primary"; ok.textContent="确定";
+    var no=document.createElement("button"); no.className="ghost"; no.textContent="取消";
+    ok.addEventListener("click",function(){ pick(items[idx]&&items[idx].v); });
+    no.addEventListener("click",closeWheel);
+    btns.appendChild(no); btns.appendChild(ok); sheet.appendChild(btns);
+    ov.appendChild(sheet); document.body.appendChild(ov);
+    function apply(){
+      var y=(vis-1)*STEP/2 - idx*STEP;
+      list.style.transform="translateY("+y+"px)";
+      Array.prototype.forEach.call(list.children,function(c,i){ c.classList.toggle("mid", i===idx); });
+    }
+    function pick(v){ if(opts&&opts.onPick)opts.onPick(v); closeWheel(); }
+    var startY=0, startIdx=0, moving=false, lastY=0, lastT=0, vel=0;
+    roller.addEventListener("touchstart",function(ev){
+      moving=true; startY=ev.touches[0].clientY; startIdx=idx; lastY=startY; lastT=Date.now(); vel=0;
+      list.style.transition="none"; ev.preventDefault();
+    },{passive:false});
+    roller.addEventListener("touchmove",function(ev){
+      if(!moving)return;
+      var y=ev.touches[0].clientY, dy=y-startY, n=Math.round(startIdx - dy/STEP);
+      if(n<0)n=0; if(n>=items.length)n=items.length-1;
+      idx=n; apply(); ev.preventDefault();
+      var now=Date.now(), dt=Math.max(1,now-lastT);
+      vel=(y-lastY)/dt; lastY=y; lastT=now;
+    },{passive:false});
+    roller.addEventListener("touchend",function(){
+      moving=false; list.style.transition="";
+      // 惯性：按甩动速度再滑 1-N 档（带过渡动画）
+      var fling=Math.round(-vel*110/STEP);
+      if(fling!==0){
+        var n2=idx+fling; if(n2<0)n2=0; if(n2>=items.length)n2=items.length-1;
+        idx=n2; apply();
+      }
+    });
+    sheet.querySelector(".pk-close").addEventListener("click",closeWheel);
+    ov.addEventListener("click",function(ev){ if(ev.target===ov)closeWheel(); });
+    apply();
+    WHEEL={ov:ov, list:list};
+  }
+  // 分类专用：底部网格选择器（一屏全见，不用滚动）
+  function openGridPicker(opts){
+    closeWheel();
+    var items=(opts&&opts.items)||[];
+    var ov=document.createElement("div"); ov.className="pk-overlay";
+    var sheet=document.createElement("div"); sheet.className="pk-sheet";
+    sheet.innerHTML="<div class='pk-head'><b>"+esc((opts&&opts.title)||"选择分类")+"</b><button class='pk-close'>×</button></div>";
+    var grid=document.createElement("div"); grid.className="cat-grid";
+    items.forEach(function(it,i){
+      var cell=document.createElement("div"); cell.className="cat-cell";
+      var dot=document.createElement("span"); dot.className="cd";
+      dot.style.background=COLORS[i%COLORS.length];
+      var nm=document.createElement("span"); nm.className="cn"; nm.textContent=it.t;
+      cell.appendChild(dot); cell.appendChild(nm);
+      cell.addEventListener("click",function(){ if(opts.onPick)opts.onPick(it.v); closeWheel(); });
+      grid.appendChild(cell);
+    });
+    sheet.appendChild(grid);
+    var btns=document.createElement("div"); btns.className="pk-btns";
+    var no=document.createElement("button"); no.className="ghost"; no.textContent="取消";
+    no.addEventListener("click",closeWheel);
+    btns.appendChild(no); sheet.appendChild(btns);
+    ov.appendChild(sheet); document.body.appendChild(ov);
+    sheet.querySelector(".pk-close").addEventListener("click",closeWheel);
+    ov.addEventListener("click",function(ev){ if(ev.target===ov)closeWheel(); });
+    WHEEL={ov:ov, list:grid};
+  }
+  var PICKERS=[];
+  function pickerize(sel,title){
+    if(!sel||sel.dataset.picker)return;
+    sel.dataset.picker="1";
+    var wrap=document.createElement("span"); wrap.style.display="block";
+    sel.parentNode.insertBefore(wrap,sel);
+    var btn=document.createElement("button"); btn.type="button"; btn.className="pk-btn";
+    function sync(){ var o=sel.options[sel.selectedIndex]; btn.textContent=o?o.text:""; }
+    sync();
+    sel.addEventListener("change",sync);
+    btn.addEventListener("click",function(){
+      var items=Array.prototype.map.call(sel.options,function(o){return {v:o.value,t:o.textContent};});
+      if(title==="分类"){
+        openGridPicker({title:title||"选择分类", items:items, value:sel.value,
+          onPick:function(v){ sel.value=v; sync(); try{ sel.dispatchEvent(new Event("change")); }catch(e){} }});
+      }else{
+        openWheelPicker({title:title||"请选择", items:items, value:sel.value,
+          onPick:function(v){ sel.value=v; sync(); try{ sel.dispatchEvent(new Event("change")); }catch(e){} }});
+      }
+    });
+    wrap.appendChild(btn);
+    sel.style.display="none";
+    PICKERS.push({sync:sync});
   }
 
   // ── AI 记账（结果卡 + 草稿） ──────────────────────────────────────
@@ -471,9 +663,10 @@
       }).catch(function(e){showToast("保存失败："+e,"err");});
   }
 
-  // ── 账单 ───────────────────────────────────────────────────────────
+  // ── 账单（筛选：seg 时间段 + 胶囊分类/成员） ───────────────────────
+  var B_RANGE="all",B_CAT="",B_MEM="";
   function rangeQ(){
-    var t=new Date(),v=$("f-range").value;
+    var t=new Date(),v=B_RANGE;
     if(v==="today")return "from="+fmt(t)+"&to="+fmt(t);
     if(v==="7d"){var f=new Date(t);f.setDate(f.getDate()-6);return "from="+fmt(f)+"&to="+fmt(t);}
     if(v==="month")return "from="+fmt(new Date(t.getFullYear(),t.getMonth(),1))+"&to="+fmt(t);
@@ -482,8 +675,8 @@
   }
   function loadBills(){
     var q=rangeQ();
-    if($("f-cat").value)q+="&category="+encodeURIComponent($("f-cat").value);
-    if($("f-mem").value)q+="&member="+encodeURIComponent($("f-mem").value);
+    if(B_CAT)q+="&category="+encodeURIComponent(B_CAT);
+    if(B_MEM)q+="&member="+encodeURIComponent(B_MEM);
     fetch("api/entries?"+q).then(function(r){return r.json();}).then(function(d){
       var rows=d.entries||[],tb=$("bill-rows");tb.innerHTML="";
       var total=rows.reduce(function(s,r){return s+r.amount_cents;},0);
@@ -508,7 +701,7 @@
       var d=tr.children[0].textContent.trim(),c=tr.children[1].textContent.trim(),amt=parseFloat(tr.children[2].textContent.replace(/[^0-9.]/g,"")),note=tr.children[3].firstChild?tr.children[3].firstChild.textContent:"";
       tr.innerHTML="";var td=document.createElement("td");td.colSpan=5;td.className="edit-row";
       var di=document.createElement("input");di.type="date";di.value=d;
-      var cs=document.createElement("select");fillSelect(cs,CATS,c);
+      var cs=document.createElement("select");fillSelect(cs,CATS,c);pickerize(cs,"分类");
       var ai=document.createElement("input");ai.type="number";ai.step="0.01";ai.value=amt.toFixed(2);ai.style.width="76px";
       var ni=document.createElement("input");ni.type="text";ni.value=note;
       var sa=document.createElement("button");sa.className="primary";sa.textContent="存";
@@ -582,27 +775,55 @@
     fetch("api/nature?year="+yr+(mo?"&month="+mo:"")).then(function(r){return r.json();})
       .then(renderNature)
       .catch(function(e){$("n-year-sec").innerHTML="<div class='empty'>加载失败</div>";});
-    loadNatureCats();
+  }
+  function showCatForm(opts){
+    var f=$("n-cat-form");
+    $("nc-edit-id").value=opts.editId||"";
+    $("nc-name").value=opts.name||"";
+    $("nc-name").placeholder=opts.editId?"修改分类名":"新分类名";
+    // 父分类下拉
+    var par=$("nc-parent");
+    var keep=opts.parent||"";
+    par.innerHTML="<option value=''>顶级分类</option>";
+    (TOP_CATS||[]).forEach(function(t){
+      if(t.id===(opts.selfId||0))return;
+      var o=document.createElement("option");o.value=t.name;o.textContent="位于 "+t.name+" 下";
+      if(t.name===keep)o.selected=true;par.appendChild(o);
+    });
+    // 性质
+    var ns=$("nc-nature");
+    if(!ns.options.length){
+      [["necessary","必要"],["fixed","固定"],["discretionary","非必要"]].forEach(function(p){
+        var o=document.createElement("option");o.value=p[0];o.textContent=p[1];ns.appendChild(o);
+      });
+    }
+    ns.value=opts.nature||"necessary";
+    if(opts.editId)$("n-cat-form-tip").textContent="正在编辑分类：改名/性质都会作用到已有流水";
+    else $("n-cat-form-tip").textContent="";
+    $("n-cat-form-tip").style.display=opts.editId?"":"none";
+    f.style.display="";
+    $("nc-name").focus();
   }
   function loadNatureCats(){
     fetch("api/categories").then(function(r){return r.json();}).then(function(d){
       var el=$("n-catlist");el.innerHTML="";
       var NNAMES={fixed:"固定",necessary:"必要",discretionary:"非必要"};
-      var nsel=$("nc-nature");
-      if(nsel&&!nsel.options.length){
-        ["necessary","fixed","discretionary"].forEach(function(n){
-          var o=document.createElement("option");o.value=n;o.textContent=NNAMES[n];
-          if(n==="necessary")o.selected=true;nsel.appendChild(o);
-        });
-      }
-      (d.categories||[]).forEach(function(c){
-        var row=document.createElement("div");row.className="nat-row";
+      var cats=d.categories||[];
+      TOP_CATS=cats.filter(function(c){return !c.parent_id;});
+      cats.forEach(function(c){
+        var row=document.createElement("div");row.className="nat-row"+(c.parent_id?" cat-sub":"");
+        if(c.parent_id){
+          var parName="";
+          cats.forEach(function(x){if(x.id===c.parent_id)parName=x.name;});
+          row.style.cssText="opacity:.85;";
+        }
         var nm=document.createElement("span");nm.className="nm";
-        nm.textContent=c.name+(c.is_system?"（种子）":"");
+        nm.textContent=(c.parent_id?"└ ":"")+c.name+(c.is_system?"（种子）":"");
+        nm.title=parName?("父分类："+parName):"";
         var cnt=document.createElement("span");cnt.className="cnt";
         cnt.textContent=c.cnt?c.cnt+" 笔":"";
         var sel=document.createElement("select");
-        ["fixed","necessary","discretionary"].forEach(function(n){
+        ["necessary","fixed","discretionary"].forEach(function(n){
           var o=document.createElement("option");o.value=n;o.textContent=NNAMES[n];
           if(n===(c.nature||"necessary"))o.selected=true;sel.appendChild(o);
         });
@@ -614,6 +835,16 @@
             }).catch(function(e){showToast("设置失败："+e,"err");sel.value=c.nature||"necessary";});
         });
         row.appendChild(nm);row.appendChild(cnt);row.appendChild(sel);
+        var ed=document.createElement("button");ed.className="ghost";
+        ed.style.cssText="padding:3px 8px;font-size:12px";ed.textContent="✎";
+        ed.title="编辑/改名";
+        ed.onclick=function(){showCatForm({editId:c.id,name:c.name,nature:c.nature||"necessary"});};
+        row.appendChild(ed);
+        var addSub=document.createElement("button");addSub.className="ghost";
+        addSub.style.cssText="padding:3px 8px;font-size:12px";addSub.textContent="+子";
+        addSub.title="在「"+c.name+"」下添加子分类";
+        addSub.onclick=function(){showCatForm({parent:c.name,selfId:c.id});};
+        row.appendChild(addSub);
         if(!c.is_system){
           var del=document.createElement("button");del.className="danger";
           del.style.cssText="padding:3px 8px;font-size:12px";del.textContent="删";
@@ -630,58 +861,29 @@
         }
         el.appendChild(row);
       });
-      if(!(d.categories||[]).length)el.innerHTML="<div class='empty'>还没有分类</div>";
+      if(!cats.length)el.innerHTML="<div class='empty'>还没有分类</div>";
     }).catch(function(){});
   }
 
-  // ── 家庭 ───────────────────────────────────────────────────────────
-  function loadFamily(){
-    fetch("api/dashboard?offset=0").then(function(r){return r.json();}).then(function(dd){
-      var spend={};dd.members.forEach(function(m){spend[m.name]=m.total_cents;});
-      fetch("api/members").then(function(r){return r.json();}).then(function(d){
-        var el=$("member-list");el.innerHTML="";
-        (d.members||[]).forEach(function(m){
-          var div=document.createElement("div");div.className="member-card";
-          div.innerHTML="<span><b>"+esc(m.name)+"</b>"+(m.relation?" <span style='color:#9A937F;font-size:12px'>（"+esc(m.relation)+"）</span>":"")+"</span>"+
-            "<span style='font-weight:700;color:#B7791F'>本月 "+yuan(spend[m.name]||0)+" 元</span>"+
-            (m.name==="本人"?"":"<button class='danger' data-mid='"+m.id+"'>移除</button>");
-          el.appendChild(div);
-        });
-        el.querySelectorAll("button[data-mid]").forEach(function(b){
-          b.onclick=function(){
-            if(!confirm("移除该成员？"))return;
-            fetch("api/members/"+b.dataset.mid,{method:"DELETE"}).then(function(r){return r.json();}).then(function(d){
-              if(d.error){showToast(d.error,"err");return;}loadFamily();
-            });
-          };
-        });
-      });
-    });
-  }
-  $("btn-new-cat").onclick=function(){$("n-cat-form").style.display=$("n-cat-form").style.display==="none"?"":"none";};
-  $("btn-cat-cancel").onclick=function(){$("n-cat-form").style.display="none";};
+  $("btn-new-cat").onclick=function(){showCatForm({});};
+  $("btn-cat-cancel").onclick=function(){$("n-cat-form").style.display="none";$("n-cat-form-tip").style.display="none";};
   $("btn-cat-save").onclick=function(){
     var n=$("nc-name").value.trim();if(!n){showToast("分类名必填","err");return;}
-    fetch("api/categories",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:n,nature:$("nc-nature").value})})
+    var eid=$("nc-edit-id").value, body={name:n,nature:$("nc-nature").value};
+    var url="api/categories", method="POST";
+    if(eid){url="api/categories/"+eid;method="PATCH";}
+    else body.parent=$("nc-parent").value||undefined;
+    fetch(url,{method:method,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
       .then(function(r){return r.json();}).then(function(x){
-        if(x.ok){$("nc-name").value="";$("n-cat-form").style.display="none";showToast("已新增分类「"+n+"」","ok");loadNatureCats();loadMeta();}
-        else showToast("新增失败："+(x.error||""),"err");
-      }).catch(function(e){showToast("新增失败："+e,"err");});
+        if(x.ok){$("nc-name").value="";$("n-cat-form").style.display="none";$("n-cat-form-tip").style.display="none";
+          showToast(eid?"已保存分类":"已新增分类「"+n+"」","ok");loadNatureCats();loadMeta();}
+        else showToast((eid?"保存失败：":"新增失败：")+(x.error||""),"err");
+      }).catch(function(e){showToast("操作失败："+e,"err");});
   };
-  $("btn-new-member").onclick=function(){$("member-form").style.display=$("member-form").style.display==="none"?"":"none";};
-  $("btn-member-save").onclick=function(){
-    var n=$("m-name").value.trim();if(!n){showToast("姓名必填","err");return;}
-    fetch("api/members",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:n,relation:$("m-relation").value.trim()||null})})
-      .then(function(r){return r.json();}).then(function(d){
-        if(d.error){showToast(d.error,"err");return;}
-        $("m-name").value="";$("m-relation").value="";$("member-form").style.display="none";showToast("✅ 已添加 "+n,"ok");loadFamily();
-      });
-  };
-  $("btn-member-cancel").onclick=function(){$("member-form").style.display="none";};
-
   // 事件绑定
   $("hub-qa").onclick=function(){showToast("问问家里：规划中。可先用 DSH 会话提问（网关登录后即终端）。");};
-  $("hub-tool").onclick=function(){showToast("工具箱：开发中，将支持文件互传 / Excel 账本导入。");};
+  // 工具箱：工具 01 文件盒子（家庭入口 /home/files/，与记账同命名空间）
+  $("hub-tool").onclick=function(){location.href="/home/files/";};
   $("btn-switch-user").onclick=showUserPick;
   $("btn-parse").onclick=smartAdd;
   $("btn-confirm").onclick=confirmSave;
@@ -695,19 +897,32 @@
     box.style.display=show?"":"none";
     $("btn-toggle-manual").textContent=show?"收起":"展开";
   };
-  ["f-cat","f-mem","f-range","f-from","f-to"].forEach(function(id){$(id).addEventListener("change",function(){if(id==="f-range"){var c=$("f-range").value==="custom";$("f-from").style.display=c?"":"none";$("f-to").style.display=c?"":"none";}loadBills();});});
+  document.querySelectorAll("#f-range-seg button").forEach(function(b){
+    b.onclick=function(){
+      B_RANGE=b.dataset.v;
+      document.querySelectorAll("#f-range-seg button").forEach(function(x){x.classList.toggle("on",x===b);});
+      $("f-custom-wrap").style.display=(B_RANGE==="custom")?"":"none";
+      loadBills();
+    };
+  });
+  ["f-from","f-to"].forEach(function(id){$(id).addEventListener("change",loadBills);});
 
   $("f-date").value=todayS();
+  // 原生下拉 → 滚轮选择器（分类/成员/收支类型/财务年月）
+  [["f-kind","收支类型"],["e-category","分类"],["e-member","成员"],["f-category","分类"],["f-member","成员"],["n-year","年份"],["n-month","月份"]].forEach(function(p){
+    var s=$(p[0]); if(s)pickerize(s,p[1]);
+  });
   initMonthSelect();
   function viewFromHash(){
     var h=(location.hash||"").replace(/^#\/+?/,"");
-    if(h.slice(0,7)==="ledger/"){var s=h.split("/")[1]||"";return ["ai","bills","family","finance"].indexOf(s)>=0?s:"ledger";}
-    if(["home","ledger","ai","bills","family","finance"].indexOf(h)>=0)return h;
-    return "home";
+    if(h.slice(0,7)==="ledger/"){var s=h.split("/")[1]||"";return ["ai","bills","finance"].indexOf(s)>=0?s:"ledger";}
+    if(["home","ledger","ai","bills","finance"].indexOf(h)>=0)return h;
+    return "ai";
   }
   window.addEventListener("hashchange",function(){showView(viewFromHash());});
   $("btn-home").onclick=function(){showView("home");};
   loadMeta().then(function(){
+    PICKERS.forEach(function(p){p.sync();});
     initDevUser();checkDraft();
     showView(viewFromHash());
   });

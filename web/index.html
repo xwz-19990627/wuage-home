@@ -150,7 +150,8 @@
       <div class="hub-grid">
         <div class="hub-card" data-goto="ai"><div class="hc-ico">📒</div><div class="hc-name">记账</div><div class="hc-sub">AI / 账单 / 财务 / 分类</div></div>
         <div class="hub-card" id="hub-qa"><div class="hc-ico">💬</div><div class="hc-name">问问家里</div><div class="hc-sub">问答 · 规划中</div></div>
-        <div class="hub-card" id="hub-tool"><div class="hc-ico">🧰</div><div class="hc-name">工具箱</div><div class="hc-sub">文件互传 · 已上线</div></div>
+        <div class="hub-card" id="hub-tool"><div class="hc-ico">🧰</div><div class="hc-name">工具箱</div><div class="hc-sub">工具入口 · 文件/理财</div></div>
+        <div class="hub-card" id="hub-finance"><div class="hc-ico">📈</div><div class="hc-name">理财助手</div><div class="hc-sub">持仓/复盘/回测 · MVP</div></div>
       </div>
     </div>
   </div>
@@ -264,8 +265,41 @@
     </div>
   </div>
 
-  <!-- 财务 -->
+  <!-- 财务：家庭总账 + 支出性质 -->
   <div id="view-finance" class="view">
+    <div class="card" style="background:linear-gradient(135deg,#F7E8CF,#FDF6EA)">
+      <h2>💰 家庭总账 · 净资产</h2>
+      <div class="big" id="nw-total">--<small>元</small></div>
+      <div class="meta-row" id="nw-meta"></div>
+      <div id="nw-trend" style="margin-top:6px"></div>
+    </div>
+    <div class="card">
+      <h2>📅 月度结算 <span class="ver">工资 18,000 + 公积金 3,000</span></h2>
+      <div class="row" style="margin-bottom:6px">
+        <select id="ms-year" style="padding:5px"></select>
+        <select id="ms-month" style="padding:5px"></select>
+        <button class="primary" id="btn-ms" style="flex:1">记入本月收入</button>
+        <button class="ghost" id="btn-ms-refresh" style="flex:1;display:none">本月已记 ✓</button>
+      </div>
+      <div class="hint" id="ms-hint"></div>
+    </div>
+    <div class="card">
+      <h2>🏦 资产账户 <span class="ver">按存款来源 · 月未更新一次</span></h2>
+      <div id="nw-accounts"></div>
+      <div class="hint" style="margin-top:6px">每账户点「更新」录入当月余额（黄金按当前市价换算总价，如 120g × 800 元 = 96,000）。</div>
+    </div>
+    <div id="nw-edit" class="card" style="display:none">
+      <h2>更新账户余额</h2>
+      <input id="nw-edit-name" style="width:100%" readonly>
+      <div class="row" style="margin-top:6px">
+        <input id="nw-edit-amount" type="number" step="0.01" min="0" placeholder="余额（元）" style="flex:1">
+        <input id="nw-edit-date" type="date" style="flex:1">
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="primary" id="nw-edit-save" style="flex:1">保存</button>
+        <button class="ghost" id="nw-edit-cancel">取消</button>
+      </div>
+    </div>
     <div class="card">
       <h2>支出性质</h2>
       <div class="row" style="margin-bottom:6px">
@@ -276,10 +310,6 @@
       <div id="n-month-sec"></div>
       <div class="hint" style="margin:12px 0 2px">📅 全年汇总（<span id="n-year-label"></span>）</div>
       <div id="n-year-sec"></div>
-    </div>
-    <div class="card">
-      <h2>分类管理</h2>
-      <div class="hint">分类维护已移到「AI 记账」页底部（手动录入下方）：添加 / 改名 / 子分类 / 性质。</div>
     </div>
   </div>
 
@@ -747,7 +777,107 @@
     }
     $("n-year-label").textContent=(d.year||"")+"年";
   }
-  function loadFinance(){
+  // ── 家庭总账（rc.5）─────────────
+  var NW_CUR=null;
+  function fmtMoney(c){
+    var s=String(Math.round((c||0)/100)).replace(/\B(?=(\d{3})+(?!\d))/g,",");
+    return s;
+  }
+  function loadNetworth(){
+    fetch("api/networth").then(function(r){return r.json();}).then(renderNetworth)
+      .catch(function(){if($("nw-total"))$("nw-total").innerHTML="--<small>元</small>";});
+  }
+  function renderNetworth(d){
+    $("nw-total").innerHTML=fmtMoney(d.total_cents)+"<small>元</small>";
+    $("nw-meta").textContent="净资产 = 四类资产合计 · 快照截至 "+d.updated_at;
+    var el=$("nw-accounts");el.innerHTML="";
+    (d.accounts||[]).forEach(function(a){
+      var row=document.createElement("div");
+      row.style.cssText="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)";
+      row.innerHTML=
+        "<div style='flex:1;min-width:0'>"+
+          "<div style='font-size:15px;font-weight:600'>"+esc(a.name)+"<span style='font-size:11px;color:var(--sub);font-weight:400'> · "+esc(a.type_name)+"</span></div>"+
+          "<div style='font-size:11px;color:var(--sub)'>"+((a.note?esc(a.note)+" · ":"")+(a.balance_date?("快照 "+String(a.balance_date).slice(5)):"尚未录入余额"))+"</div>"+
+        "</div>"+
+        "<div style='text-align:right'><b style='font-size:16px'>"+fmtMoney(a.latest_balance)+"</b><span style='color:var(--sub);font-size:11px'> 元</span></div>"+
+        "<button class='ghost' style='padding:5px 10px;font-size:12px'>更新</button>";
+      row.querySelector("button").onclick=function(){openBalanceEdit(a);};
+      el.appendChild(row);
+    });
+    var tr=$("nw-trend");
+    var arr=(d.trend||[]).slice(-6);
+    tr.innerHTML=arr.length?("<div class='hint'>净值趋势（近 "+arr.length+" 期）</div>"):"";
+    if(!arr.length){
+      tr.innerHTML="<div class='hint'>还没有余额快照 —— 点击下方账户「更新」录入各账户余额后，这里会出现净值走势。</div>";
+      return;
+    }
+    var mx=Math.max.apply(null,arr.map(function(x){return x.total_cents;}));
+    var bars="<div class='bars' style='height:96px'>";
+    arr.forEach(function(x){
+      var h=(mx>0)?Math.max(4,Math.round(x.total_cents*96/mx)):0;
+      bars+="<div class='bar' style='height:"+h+"px'><span>"+fmtMoney(x.total_cents)+"</span><i>"+String(x.month).slice(5)+"</i></div>";
+    });
+    tr.innerHTML+="<div class='bars' style='height:96px'>"+bars+"</div>";
+  }
+  function openBalanceEdit(a){
+    NW_CUR=a.id;
+    $("nw-edit").style.display="";
+    $("nw-edit-name").value=a.name;
+    $("nw-edit-amount").value=(a.latest_balance>0)?(a.latest_balance/100):"";
+    $("nw-edit-date").value=a.balance_date||todayS();
+  }
+  function saveBalance(){
+    if(!NW_CUR)return;
+    var v=parseFloat($("nw-edit-amount").value);
+    if(!(v>=0)){showToast("余额无效","err");return;}
+    fetch("api/balances",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({account_id:NW_CUR,balance_cents:Math.round(v*100),date:$("nw-edit-date").value})})
+      .then(function(r){return r.json();}).then(function(x){
+        if(x.error){showToast(x.error,"err");return;}
+        $("nw-edit").style.display="none";
+        showToast("余额已更新","ok");
+        checkMonthlySettle();loadNetworth();
+      }).catch(function(){showToast("保存失败","err");});
+  }
+  function checkMonthlySettle(){
+    var ny=$("ms-year"),nm=$("ms-month");
+    if(!ny||!ny.value)return;
+    var ym=ny.value+"-"+("0"+nm.value).slice(-2);
+    fetch("api/entries?kind=income&from="+ym+"-01&to="+ym+"-31&limit=200").then(function(r){return r.json();}).then(function(d){
+      var done=(d.entries||[]).some(function(e){return (e.remark||"").indexOf("月度结算")>=0;});
+      $("btn-ms").style.display=done?"none":"";
+      $("btn-ms-refresh").style.display=done?"":"none";
+      $("ms-hint").textContent=done?"本月已记：工资 18,000 + 公积金 3,000 ✓（幂等，不会重复）"
+        :"点击自动记入本月 工资 18,000 元 + 公积金 3,000 元（只记一次）";
+    }).catch(function(){});
+  }
+  function doMonthlySettle(){
+    fetch("api/monthly-settle",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({year:parseInt($("ms-year").value,10),month:parseInt($("ms-month").value,10)})})
+      .then(function(r){return r.json();}).then(function(x){
+        if(x.error){showToast(x.error,"err");return;}
+        showToast(x.already?"该月已结算过":"已记入工资 + 公积金","ok");
+        checkMonthlySettle();loadNetworth();loadFinanceNature();
+      }).catch(function(){showToast("结算失败","err");});
+  }
+  function initMonthlySettleUI(){
+    var ny=$("ms-year"),nm=$("ms-month"),now=new Date();
+    if(ny.options.length)return;
+    [now.getFullYear(),now.getFullYear()-1].forEach(function(yy){
+      var o=document.createElement("option");o.value=String(yy);o.textContent=yy+"年";
+      if(yy===now.getFullYear())o.selected=true;ny.appendChild(o);
+    });
+    for(var i=1;i<=12;i++){
+      var o=document.createElement("option");o.value=String(i);o.textContent=i+"月";
+      if(i===now.getMonth()+1)o.selected=true;nm.appendChild(o);
+    }
+    $("btn-ms").onclick=doMonthlySettle;
+    $("nw-edit-save").onclick=saveBalance;
+    $("nw-edit-cancel").onclick=function(){$("nw-edit").style.display="none";};
+    ny.addEventListener("change",checkMonthlySettle);
+    nm.addEventListener("change",checkMonthlySettle);
+  }
+  function loadFinanceNature(){
     var ny=$("n-year"),nm=$("n-month"),now=new Date();
     if(!ny.options.length){
       [now.getFullYear(),now.getFullYear()-1].forEach(function(yy){
@@ -762,11 +892,11 @@
         b.onclick=function(){
           NVIEW=b.dataset.v;
           document.querySelectorAll("#n-seg button").forEach(function(x){x.classList.toggle("on",x===b);});
-          loadFinance();
+          loadFinanceNature();
         };
       });
-      ny.addEventListener("change",loadFinance);
-      nm.addEventListener("change",loadFinance);
+      ny.addEventListener("change",loadFinanceNature);
+      nm.addEventListener("change",loadFinanceNature);
     }
     var yr=ny.value||String(now.getFullYear());
     var mo=(NVIEW==="month")?(nm.value||""):"";
@@ -775,6 +905,12 @@
     fetch("api/nature?year="+yr+(mo?"&month="+mo:"")).then(function(r){return r.json();})
       .then(renderNature)
       .catch(function(e){$("n-year-sec").innerHTML="<div class='empty'>加载失败</div>";});
+  }
+  function loadFinance(){
+    initMonthlySettleUI();
+    loadNetworth();
+    checkMonthlySettle();
+    loadFinanceNature();
   }
   function showCatForm(opts){
     var f=$("n-cat-form");
@@ -882,8 +1018,10 @@
   };
   // 事件绑定
   $("hub-qa").onclick=function(){showToast("问问家里：规划中。可先用 DSH 会话提问（网关登录后即终端）。");};
-  // 工具箱：工具 01 文件盒子（家庭入口 /home/files/，与记账同命名空间）
-  $("hub-tool").onclick=function(){location.href="/home/files/";};
+  // 工具箱：工具入口（先到工具箱 Hub，再到具体工具）
+  $("hub-tool").onclick=function(){location.href="/home/toolbox/";};
+  // 理财助手：直达工具 02（家庭入口 /home/finance/）
+  $("hub-finance").onclick=function(){location.href="/home/finance/";};
   $("btn-switch-user").onclick=showUserPick;
   $("btn-parse").onclick=smartAdd;
   $("btn-confirm").onclick=confirmSave;

@@ -57,7 +57,7 @@ def _nature_or_necessary(x):
     return n if n else "necessary"
 CATEGORY_MIGRATE_MAP = {"医疗健康": "医疗", "育儿教育": "教育"}
 KINDS = {"expense", "income", "transfer"}
-SOURCES = {"manual", "ai_parsed", "ai_corrected", "import"}
+SOURCES = {"manual", "ai_parsed", "ai_corrected", "import", "monthly"}
 CHANNELS = {"manual", "voice", "wechat", "import"}
 
 SCHEMA = """
@@ -138,6 +138,16 @@ CREATE TABLE IF NOT EXISTS legacy_ledger (
   member       TEXT,
   created_at   TEXT NOT NULL
 );
+-- 家庭总账（rc.5，2026-09-05）：账户月末余额快照 → 净值
+CREATE TABLE IF NOT EXISTS account_balances (
+  id            INTEGER PRIMARY KEY,
+  account_id    INTEGER NOT NULL,
+  date          TEXT NOT NULL,
+  balance_cents INTEGER NOT NULL,
+  note          TEXT NOT NULL DEFAULT '',
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ab_account_date ON account_balances(account_id, date);
 """
 
 
@@ -1044,4 +1054,167 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()# ═════════════════ 家庭总账 rc.5（2026-09-05）════════════════════════
+
+# 账户种子：按存款来源建账户（用户拍板：车不记；黄金=固定资产 120g；自媒体暂不计）
+NETWORTH_ACCOUNTS = [
+    ("工资存款", "cash", "每月工资结余（银行卡/微信/支付宝余额，月末由用户报数）"),
+    ("公积金", "savings", "公积金账户（月度结算自动 +3000）"),
+    ("黄金", "asset", "固定资产 · 黄金 120g（按当前市价记总值）"),
+    ("理财", "invest", "余额宝/基金/定存等理财资产"),
+]
+ACCOUNT_TYPES = {
+    "cash": "现金存款", "savings": "公积金/储蓄", "asset": "固定资产",
+    "invest": "理财", "other": "其他",
+}
+
+
+def _migrate_accounts_note(conn):
+    """幂等：老库 accounts 补 note 列。"""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(accounts)").fetchall()}
+    if "note" not in cols:
+        conn.execute("ALTER TABLE accounts ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+        conn.commit()
+        return True
+    return False
+
+
+def add_account(conn, family_id, name, atype="cash", note=""):
+    name = (name or "").strip()
+    if not name:
+        raise LedgerError("账户名不能为空")
+    if atype not in ACCOUNT_TYPES:
+        raise LedgerError("账户类型非法：{}".format(atype))
+    row = conn.execute("SELECT id FROM accounts WHERE family_id=? AND name=?",
+                       (family_id, name)).fetchone()
+    if row is not None:
+        raise LedgerError("账户已存在：{}".format(name))
+    cur = conn.execute(
+        "INSERT INTO accounts (family_id, name, type, note, created_at) VALUES (?,?,?,?,?)",
+        (family_id, name, atype, (note or "").strip(), now_iso()))
+    conn.commit()
+    return cur.lastrowid
+
+
+def ensure_networth_accounts(conn, family_id, note=True):
+    """幂等：建种子账户（工资存款/公积金/黄金/理财），返回 id 列表。"""
+    _migrate_accounts_note(conn)
+    ids = []
+    for name, atype, note_txt in NETWORTH_ACCOUNTS:
+        row = conn.execute("SELECT id, note FROM accounts WHERE family_id=? AND name=?",
+                           (family_id, name)).fetchone()
+        if row is None:
+            ids.append(add_account(conn, family_id, name, atype, note_txt))
+        else:
+            ids.append(row["id"])
+            if note and row["note"] != note_txt:
+                conn.execute("UPDATE accounts SET note=? WHERE id=?", (note_txt, row["id"]))
+                conn.commit()
+    return ids
+
+
+def list_accounts(conn, family_id):
+    _migrate_accounts_note(conn)
+    rows = conn.execute(
+        """SELECT a.*,
+                  (SELECT balance_cents FROM account_balances b
+                    WHERE b.account_id=a.id ORDER BY b.date DESC, b.id DESC LIMIT 1) AS latest_balance,
+                  (SELECT date FROM account_balances b
+                    WHERE b.account_id=a.id ORDER BY b.date DESC, b.id DESC LIMIT 1) AS balance_date
+           FROM accounts a WHERE a.family_id=? ORDER BY a.id""", (family_id,)).fetchall()
+    out = []
+    for r in rows:
+        d = row_to_dict(r)
+        d["type_name"] = ACCOUNT_TYPES.get(d.get("type"), d.get("type", ""))
+        d["latest_balance"] = d.get("latest_balance") or 0
+        out.append(d)
+    return out
+
+
+def set_balance(conn, family_id, account_id, date, balance_cents, note=""):
+    """写账户余额快照（同账户同日覆盖）。"""
+    acc = conn.execute("SELECT * FROM accounts WHERE id=? AND family_id=?",
+                       (account_id, family_id)).fetchone()
+    if acc is None:
+        raise LedgerError("账户不存在")
+    try:
+        balance_cents = int(balance_cents)
+    except (TypeError, ValueError):
+        raise LedgerError("balance_cents must be int")
+    d = parse_date(date)
+    conn.execute("DELETE FROM account_balances WHERE account_id=? AND date=?", (account_id, d))
+    cur = conn.execute(
+        "INSERT INTO account_balances (account_id, date, balance_cents, note, created_at)"
+        " VALUES (?,?,?,?,?)", (account_id, d, balance_cents, (note or "").strip(), now_iso()))
+    conn.commit()
+    return cur.lastrowid
+
+
+def networth_data(conn, family_id):
+    """净值：各账户最新余额合计 + 近 12 个月趋势。"""
+    accounts = list_accounts(conn, family_id)
+    total = sum(a["latest_balance"] for a in accounts)
+    months = [r[0] for r in conn.execute(
+        """SELECT DISTINCT substr(b.date,1,7) ym FROM account_balances b
+           JOIN accounts a ON a.id=b.account_id WHERE a.family_id=?
+           ORDER BY ym DESC LIMIT 12""", (family_id,)).fetchall()]
+    trend = []
+    for ym in sorted(months):
+        last_day = ym + "-31"   # YYYY-MM-DD 字符串比较，31 足够覆盖当月
+        tot = 0
+        for a in accounts:
+            # 截至该月末每账户最新已知余额（缺省沿用更早快照）
+            r = conn.execute(
+                "SELECT balance_cents FROM account_balances WHERE account_id=? AND date<=?"
+                " ORDER BY date DESC, id DESC LIMIT 1", (a["id"], last_day)).fetchone()
+            if r:
+                tot += r["balance_cents"]
+        trend.append({"month": ym, "total_cents": tot})
+    return {"accounts": accounts, "total_cents": total, "trend": trend,
+            "updated_at": today()}
+
+
+def _ensure_gjj_category(conn, family_id):
+    row = conn.execute("SELECT id FROM categories WHERE family_id=? AND name='公积金'",
+                       (family_id,)).fetchone()
+    if row:
+        return row["id"]
+    cur = conn.execute(
+        "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature)"
+        " VALUES (?,?,'income',0,999,'necessary')", (family_id, "公积金"))
+    conn.commit()
+    return cur.lastrowid
+
+
+def monthly_settle(conn, family_id, year, month):
+    """月度结算（幂等）：每月自动记 工资 18000 + 公积金 3000（2026-09-05 用户拍板）。
+    返回 {"added": n, "already": bool}。"""
+    ym = "%04d-%02d" % (int(year), int(month))
+    done = conn.execute("SELECT COUNT(*) c FROM transactions WHERE source='monthly' AND date LIKE ?",
+                        (ym + "%",)).fetchone()["c"]
+    if done:
+        return {"added": 0, "already": True}
+    seed = ensure_seed(conn)
+    fam_id2 = seed["family_id"]
+    if fam_id2 != family_id:
+        raise LedgerError("family mismatch")
+    gz = conn.execute("SELECT id FROM categories WHERE family_id=? AND name='工资'",
+                      (family_id,)).fetchone()
+    if gz is None:
+        raise LedgerError("工资分类不存在（先 ensure_seed）")
+    gjj = _ensure_gjj_category(conn, family_id)
+    d1 = ym + "-01"
+    items = ((gz["id"], 1800000, "[月度结算] 工资 18000"),
+             (gjj, 300000, "[月度结算] 公积金缴存 3000"))
+    now = now_iso()
+    for cat_id, cents, remark in items:
+        conn.execute(
+            """INSERT INTO transactions
+               (family_id, account_id, member_id, category_id, amount_cents, kind, date, remark,
+                merchant, source, channel, raw_text, ai_confidence, corrected_from, tags,
+                external_id, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (family_id, seed["account_id"], seed["member_id"], cat_id, cents, "income", d1,
+             remark, None, "monthly", "monthly", None, None, None, "[]", None, now))
+    conn.commit()
+    return {"added": len(items), "already": False}

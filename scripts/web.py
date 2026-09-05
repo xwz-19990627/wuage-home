@@ -206,6 +206,25 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, {"drafts": ds})
             return
+        if path == "/api/accounts":
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                accs = L.list_accounts(conn, fam_id)
+                total = sum(a["latest_balance"] for a in accs)
+            finally:
+                conn.close()
+            self._json(200, {"accounts": accs, "total_cents": total})
+            return
+        if path == "/api/networth":
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                d = L.networth_data(conn, fam_id)
+            finally:
+                conn.close()
+            self._json(200, d)
+            return
         if path == "/api/import/files":
             files = []
             if IB.UPLOAD_DIR.exists():
@@ -307,6 +326,41 @@ class Handler(BaseHTTPRequestHandler):
             finally:
                 conn.close()
             self._json(201, {"ok": True, "id": did})
+            return
+        if path in ("/api/accounts", "/api/balances", "/api/monthly-settle"):
+            try:
+                body = self._read_body()
+            except (ValueError, json.JSONDecodeError) as e:
+                self._error(400, "bad body: {}".format(e))
+                return
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                if path == "/api/accounts":
+                    if not body.get("name"):
+                        raise L.LedgerError("name required")
+                    aid = L.add_account(conn, fam_id, body["name"],
+                                        atype=body.get("type") or "cash",
+                                        note=body.get("note") or "")
+                    result = {"ok": True, "id": aid}
+                elif path == "/api/balances":
+                    if not body.get("account_id") or "balance_cents" not in body:
+                        raise L.LedgerError("account_id / balance_cents required")
+                    bid = L.set_balance(conn, fam_id, int(body["account_id"]),
+                                        body.get("date") or datetime.date.today().isoformat(),
+                                        body["balance_cents"], note=body.get("note") or "")
+                    result = {"ok": True, "id": bid}
+                else:  # monthly-settle
+                    year = int(body.get("year") or datetime.date.today().year)
+                    month = int(body.get("month") or datetime.date.today().month)
+                    result = L.monthly_settle(conn, fam_id, year, month)
+            except (L.LedgerError, ValueError) as e:
+                conn.close()
+                self._error(400, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(201, result)
             return
         if path == "/api/categories" or path == "/api/members":
             try:

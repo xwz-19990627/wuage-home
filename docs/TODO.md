@@ -4,6 +4,18 @@
 > 并在 $DSH_HOME/AGENTS.md 的 wuage 小节同步一句话摘要（新会话自动加载）。
 > 新会话开场说"先看项目待办"或直接读本文件即可无缝续接。
 
+## 当前状态（2026-09-06）
+- ✅ **家庭总账 rc.5 已实现并上线**（用户拍板：车不记；固定资产=黄金 120g；账户按存款来源建；
+  每月收入 = 工资 18,000 + 公积金 3,000；蛙哥自媒体收入暂不计入；负债暂不做）：
+  - ledger.py：account_balances 快照表、accounts.add_account/list_accounts/set_balance、
+    networth_data（各账户最新余额 + 近 12 期净值趋势，缺快照沿用上月）、monthly_settle（幂等，
+    自动记 工资 18000 income + 公积金 3000 income，source=monthly，公积金=新 income 分类）；
+  - web.py：GET /api/networth、/api/accounts；POST /api/accounts、/api/balances、/api/monthly-settle；
+  - UI：财务页 = 净资产大卡 + 净值趋势 + 月度结算按钮（记入本月收入）+ 资产账户列表（点「更新」录余额）
+    + 保留支出性质统计；
+  - 正式库已建 4 个种子账户：工资存款 / 公积金 / 黄金(120g) / 理财；面板已重启生效。
+  - ⏳ 待用户提供：各账户余额快照（黄金按当前市价，如 120g×800=96,000 元）、8 月是否补记工资。
+
 ## 当前状态（2026-09-05）
 - ✅ **8 月账单正式导入完成**（227 条明细 = 残雪+蛙哥 微信+支付宝 4 文件，源头 /root/project/data/files）。
   按用户确认的三条清洗规则落地并固化进 scripts/import_bills.py（clean_records()，多文件 CLI 自动执行）：

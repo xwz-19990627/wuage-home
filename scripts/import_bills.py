@@ -17,12 +17,13 @@
 
 用法：
   python3 scripts/import_bills.py list
-  python3 scripts/import_bills.py preview <文件>
-  python3 scripts/import_bills.py import <文件> [--yes] [--member 蛙哥] [--json]
+  python3 scripts/import_bills.py preview <文件...>
+  python3 scripts/import_bills.py import <文件...> [--yes] [--member 蛙哥] [--json]
 """
 
 import argparse
 import csv
+import datetime
 import io
 import json
 import os
@@ -119,6 +120,11 @@ WX_KEYWORD_RULES = [
     ("居住", ["房租", "物业", "水电", "燃气", "供暖", "维修", "家居", "房东"]),
     ("通讯", ["话费", "流量", "移动", "联通", "电信", "宽带"]),
     ("人情", ["红包", "转账"]),
+    # 2026-09-05 账单实测补漏（否则 UNIQLO/Apple/生活缴费/寻湘地带 会被当人情/未分类）
+    ("服饰", ["UNIQLO", "优衣库"]),
+    ("娱乐", ["apple.com", "Apple"]),
+    ("居住", ["生活缴费", "水务"]),
+    ("餐饮", ["寻湘地带"]),
 ]
 WX_TRANSFER_TYPES = {"零钱充值", "零钱提现", "零钱通", "理财通"}
 
@@ -382,6 +388,11 @@ def normalize_ali(row):
         for nick in ALI_FAMILY_TRANSFERS:
             if nick in merchant:
                 return None, "家庭内部往来"
+        # 购物金充值 = 预存购物支出（2026-08-23 决策；2026-09 实测：疯狂小狗购物金 1850）
+        if "购物金" in (product or "") or "购物金" in merchant:
+            kind = "income" if io_v == "收入" else "expense"
+            mark = " 购物金充值" if remark else "购物金充值"
+            return (dict(base, kind=kind, category="购物", remark=(remark + mark) if remark else mark), None)
         if io_v == "收入":
             return (dict(base, kind="income", category="人情"), None)
         return (dict(base, kind="expense", category="人情"), None)
@@ -444,6 +455,90 @@ def cancel_refunds(records):
         for r in refs[:n]:
             killed.add(id(r))
     return [r for r in records if id(r) not in killed]
+
+
+# 2026-09-05 与用户确认的流水清洗规则（下月起多文件导入自动执行；本月已手工套用）：
+MIN_IMPORT_CENTS = 50   # R1：低于 5 毛的流水不导入
+
+
+def _ddate(s):
+    y, m, d = str(s)[:10].split("-")
+    return datetime.date(int(y), int(m), int(d))
+
+
+def clean_records(records):
+    """家庭账单清洗（S=原记录来自两人四渠道，D=去掉重复与同额对消）：
+      R1  低于 5 毛（<0.5 元）的流水去除；
+      R2  亲属卡双记：同一交易单号在两人账单各记一笔（本人侧『亲属卡交易』+ 蛙哥侧真实消费）
+          → 保留真实消费行，删除『亲属卡交易』重复行；
+      R3  收支对消：① 微信转账被退回（收入退款行 merchant=/ 与状态含退的支出行配对，
+          或同日±1 天同金额），成对删除；无配对的小额(<=5元)转账退款视为家庭互转噪声删除；
+          ② 同日 + 同商户 + 同金额 的一收一支（往返转账）成对删除。
+    返回 (kept, drops)；drops=[{reason, rec}]
+    """
+    drops = []
+
+    def drop(rec, why):
+        drops.append({"reason": why, "rec": rec})
+
+    # R1
+    kept = [r for r in records if r["amount_cents"] >= MIN_IMPORT_CENTS]
+    for r in records:
+        if r["amount_cents"] < MIN_IMPORT_CENTS:
+            drop(r, "R1_低于5毛")
+
+    # R3① 微信退款配对（转账-退款行 merchant=/ 等 cancel_refunds 按商户配不上的）
+    refund_incomes = [r for r in kept
+                      if r["platform"] == "wx" and r["kind"] == "income"
+                      and ("退款" in (r.get("remark") or "") or "退款" in (r.get("status") or ""))]
+    for ri in refund_incomes:
+        d0 = _ddate(ri["date"])
+        matches = [r for r in kept
+                   if r["platform"] == "wx" and r["kind"] == "expense"
+                   and r["amount_cents"] == ri["amount_cents"]
+                   and abs((_ddate(r["date"]) - d0).days) <= 1
+                   and ("退" in (r.get("status") or "") or "还" in (r.get("status") or ""))]
+        if matches:
+            for m in matches:
+                drop(m, "R3_转账退款对消-支出")
+            drop(ri, "R3_转账退款对消-收入")
+        elif ri["amount_cents"] <= 500 and (ri.get("merchant") or "") == "/":
+            drop(ri, "R3_无配对小额转账退款")
+
+    # R3② 同日同商户同金额 一收一支 → 往返对消
+    keyed = {}
+    for r in kept:
+        if r["platform"] == "wx" and r["kind"] in ("income", "expense"):
+            key = (r["date"], r["amount_cents"], r.get("merchant") or "")
+            keyed.setdefault(key, []).append(r)
+    for key, group in keyed.items():
+        if {r["kind"] for r in group} == {"income", "expense"}:
+            for r in group:
+                drop(r, "R3_同日同商户往返")
+
+    dropped_ids = {id(d["rec"]) for d in drops}
+    kept = [r for r in kept if id(r) not in dropped_ids]
+
+    # R2 亲属卡双记（同 external_id 保留真实消费行）
+    grouped = {}
+    for r in kept:
+        grouped.setdefault(r.get("external_id") or "", []).append(r)
+    kept2 = []
+    for eid, group in grouped.items():
+        if len(group) > 1:
+            real = [r for r in group if "亲属卡" not in (r.get("remark") or "")]
+            dup = [r for r in group if "亲属卡" in (r.get("remark") or "")]
+            if real and dup:
+                for r in dup:
+                    drop(r, "R2_亲属卡双记")
+                kept2.extend(real)
+                continue
+        kept2.extend(group)
+    # 汇总去重 drops
+    seen = {}
+    for d in drops:
+        seen.setdefault(id(d["rec"]), d)
+    return kept2, list(seen.values())
 
 
 def normalize_all(path):
@@ -541,21 +636,37 @@ def cmd_list(args):
         print("  [{}] {:<60} {:>8} KB".format(plat, p.name, p.stat().st_size // 1024))
 
 
+def _load_many(files):
+    """多文件解析 + 合并 + 清洗（R1/R2/R3）。返回 (records, skipped, drops)。"""
+    records, skipped = [], []
+    for f in files:
+        recs, sk = normalize_all(str(f))
+        records += recs
+        skipped += sk
+    records, drops = clean_records(records)
+    return records, skipped, drops
+
+
 def cmd_preview(args):
-    path = Path(args.file)
-    records, skipped = normalize_all(str(path))
+    files = args.file if isinstance(args.file, list) else [args.file]
+    records, skipped, drops = _load_many(files)
+    dcount = len(drops)
     conn = L.connect()
     try:
         prev = build_preview(records, skipped, conn)
     finally:
         conn.close()
     if args.json:
-        print(json.dumps(prev, ensure_ascii=False, indent=2))
+        print(json.dumps({"cleaned": dcount, **prev}, ensure_ascii=False, indent=2))
         return
-    print("文件：{}".format(path.name))
+    print("文件：{}".format(", ".join(Path(f).name for f in files)))
     print("解析：共 {} 行 → 可导入 {} 笔，跳过 {} 行，与库重复 {} 笔".format(
         prev["total"] + prev["skipped"] + prev["dup"], prev["total"] - prev["dup"],
         prev["skipped"], prev["dup"]))
+    print("清洗：去掉 {} 笔（{}）".format(dcount, " / ".join(
+        "{}x{}".format(k, n) for k, n in sorted(
+            {d["reason"]: sum(1 for x in drops if x["reason"] == d["reason"])
+             for d in drops}.items()))) if dcount else "清洗：无")
     print("跳过原因：{}".format(prev["skip_reasons"] or "无"))
     print(chr(10) + "待导入分类分布（笔数 / 金额元）：")
     for x in prev["by_kind_cat"]:
@@ -573,8 +684,8 @@ def cmd_preview(args):
 
 
 def cmd_import(args):
-    path = Path(args.file)
-    records, skipped = normalize_all(str(path))
+    files = args.file if isinstance(args.file, list) else [args.file]
+    records, skipped, drops = _load_many(files)
     conn = L.connect()
     try:
         prev = build_preview(records, skipped, conn)
@@ -587,10 +698,11 @@ def cmd_import(args):
         conn.close()
     if args.json:
         print(json.dumps({"skipped": prev["skipped"], "skip_reasons": prev["skip_reasons"],
-                          **result}, ensure_ascii=False))
+                          "cleaned": len(drops), **result}, ensure_ascii=False))
         return
-    print("导入完成：新增 {} 笔，跳过重复 {} 笔，解析跳过 {} 行（{}）".format(
-        result["imported"], result["dup"], prev["skipped"], prev["skip_reasons"] or "无"))
+    print("导入完成：新增 {} 笔，跳过重复 {} 笔，清洗 {} 笔（{}），解析跳过 {} 行（{}）".format(
+        result["imported"], result["dup"], len(drops), " / ".join(sorted({d["reason"] for d in drops})),
+        prev["skipped"], prev["skip_reasons"] or "无"))
     print("提示：未匹配分类的记录可在面板里按「其他」批量改分类；有需要可指定 --member 归属成员。")
 
 
@@ -598,9 +710,9 @@ def main():
     p = argparse.ArgumentParser(prog="import_bills", description="微信/支付宝账单导入")
     sub = p.add_subparsers(dest="cmd")
     sp = sub.add_parser("list"); sp.set_defaults(fn=cmd_list)
-    sp = sub.add_parser("preview"); sp.add_argument("file"); sp.add_argument("--json", action="store_true")
+    sp = sub.add_parser("preview"); sp.add_argument("file", nargs="+"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_preview)
-    sp = sub.add_parser("import"); sp.add_argument("file"); sp.add_argument("--yes", action="store_true")
+    sp = sub.add_parser("import"); sp.add_argument("file", nargs="+"); sp.add_argument("--yes", action="store_true")
     sp.add_argument("--member", default="本人"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_import)
     args = p.parse_args()

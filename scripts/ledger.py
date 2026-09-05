@@ -1218,3 +1218,53 @@ def monthly_settle(conn, family_id, year, month):
              remark, None, "monthly", "monthly", None, None, None, "[]", None, now))
     conn.commit()
     return {"added": len(items), "already": False}
+
+
+def monthly_pnl(conn, family_id, year, month, amount_cents):
+    """月度理财盈亏（2026-09-06 用户拍板：基金/余额宝每月记一次盈利/亏损）：
+    正数 → income（被动收入），负数 → expense（投资亏损）。
+    同月幂等：已有记录则原地更新（改金额/方向）。返回 {"saved": id, "kind": ..., "cents": ...}。"""
+    try:
+        amount_cents = int(amount_cents)
+    except (TypeError, ValueError):
+        raise LedgerError("amount_cents must be int")
+    ym = "%04d-%02d" % (int(year), int(month))
+    seed = ensure_seed(conn)
+    fam_id2 = seed["family_id"]
+    if fam_id2 != family_id:
+        raise LedgerError("family mismatch")
+    licai = conn.execute("SELECT id FROM categories WHERE family_id=? AND name='理财'",
+                         (family_id,)).fetchone()
+    if licai is None:
+        raise LedgerError("理财分类不存在")
+    d1 = ym + "-01"
+    existing = conn.execute(
+        "SELECT id FROM transactions WHERE source='monthly' AND date LIKE ?"
+        " AND remark LIKE '%理财盈亏%'", (ym + "%",)).fetchone()
+    if amount_cents == 0:
+        # 清掉当月盈亏记录（相当于"本月无盈亏"）
+        if existing:
+            conn.execute("DELETE FROM transactions WHERE id=?", (existing["id"],))
+            conn.commit()
+        return {"saved": None, "kind": None, "cents": 0, "deleted": bool(existing)}
+    kind = "income" if amount_cents > 0 else "expense"
+    cents = abs(amount_cents)
+    sign = "+" if amount_cents > 0 else "-"
+    remark = "[月度理财盈亏] %s%0.2f 元" % (sign, cents / 100.0)
+    now = now_iso()
+    if existing:
+        conn.execute(
+            "UPDATE transactions SET amount_cents=?, kind=?, remark=?, category_id=?, created_at=?"
+            " WHERE id=?", (cents, kind, remark, licai["id"], now, existing["id"]))
+        conn.commit()
+        return {"saved": existing["id"], "kind": kind, "cents": cents}
+    cur = conn.execute(
+        """INSERT INTO transactions
+           (family_id, account_id, member_id, category_id, amount_cents, kind, date, remark,
+            merchant, source, channel, raw_text, ai_confidence, corrected_from, tags,
+            external_id, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (family_id, seed["account_id"], seed["member_id"], licai["id"], cents, kind, d1,
+         remark, None, "monthly", "monthly", None, None, None, "[]", None, now))
+    conn.commit()
+    return {"saved": cur.lastrowid, "kind": kind, "cents": cents}

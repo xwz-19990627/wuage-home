@@ -284,6 +284,16 @@
       <div class="hint" id="ms-hint"></div>
     </div>
     <div class="card">
+      <h2>📈 理财盈亏 <span class="ver">基金/余额宝 · 每月记一次</span></h2>
+      <div class="row" style="margin-bottom:6px">
+        <select id="pnl-year" style="padding:5px"></select>
+        <select id="pnl-month" style="padding:5px"></select>
+        <input id="pnl-amount" type="number" step="0.01" placeholder="本月盈亏(元)，亏填负数" style="flex:1;min-width:0">
+        <button class="primary" id="btn-pnl">保存</button>
+      </div>
+      <div class="hint" id="pnl-hint"></div>
+    </div>
+    <div class="card">
       <h2>🏦 资产账户 <span class="ver">按存款来源 · 月未更新一次</span></h2>
       <div id="nw-accounts"></div>
       <div class="hint" style="margin-top:6px">每账户点「更新」录入当月余额（黄金按当前市价换算总价，如 120g × 800 元 = 96,000）。</div>
@@ -906,10 +916,51 @@
       .then(renderNature)
       .catch(function(e){$("n-year-sec").innerHTML="<div class='empty'>加载失败</div>";});
   }
+  function initPnlUI(){
+    var py=$("pnl-year"),pm=$("pnl-month"),now=new Date();
+    if(py.options.length)return;
+    [now.getFullYear(),now.getFullYear()-1].forEach(function(yy){
+      var o=document.createElement("option");o.value=String(yy);o.textContent=yy+"年";
+      if(yy===now.getFullYear())o.selected=true;py.appendChild(o);
+    });
+    for(var i=1;i<=12;i++){
+      var o=document.createElement("option");o.value=String(i);o.textContent=i+"月";
+      if(i===now.getMonth()+1)o.selected=true;pm.appendChild(o);
+    }
+    $("btn-pnl").onclick=doPnl;
+    py.addEventListener("change",loadPnl);
+    pm.addEventListener("change",loadPnl);
+  }
+  function loadPnl(){
+    var py=$("pnl-year"),pm=$("pnl-month");
+    if(!py||!py.value)return;
+    var ym=py.value+"-"+("0"+pm.value).slice(-2);
+    fetch("api/entries?from="+ym+"-01&to="+ym+"-31&limit=500").then(function(r){return r.json();}).then(function(d){
+      var rec=(d.entries||[]).filter(function(e){return (e.remark||"").indexOf("理财盈亏")>=0;})[0];
+      $("pnl-amount").value=rec?((rec.kind==="income"?1:-1)*(rec.amount_cents/100)):"";
+      $("pnl-hint").textContent=rec?
+        ("本月已记："+(rec.kind==="income"?"盈利 +":"亏损 -")+yuan(rec.amount_cents)+" 元（改数字点保存可更新）")
+        :"正数=盈利（被动收入）｜负数=亏损（记支出）｜每月底记一次，同一月重复保存会覆盖。";
+    }).catch(function(){});
+  }
+  function doPnl(){
+    var v=parseFloat($("pnl-amount").value);
+    if(!isFinite(v)){showToast("请输入金额","err");return;}
+    fetch("api/monthly-pnl",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({year:parseInt($("pnl-year").value,10),month:parseInt($("pnl-month").value,10),
+                           amount_cents:Math.round(v*100)})})
+      .then(function(r){return r.json();}).then(function(x){
+        if(x.error){showToast(x.error,"err");return;}
+        showToast(x.kind?(x.kind==="income"?"已记盈利 +"+yuan(x.cents):"已记亏损 -"+yuan(x.cents)):"已清除该月盈亏","ok");
+        loadPnl();loadNetworth();loadFinanceNature();
+      }).catch(function(){showToast("保存失败","err");});
+  }
   function loadFinance(){
     initMonthlySettleUI();
+    initPnlUI();
     loadNetworth();
     checkMonthlySettle();
+    loadPnl();
     loadFinanceNature();
   }
   function showCatForm(opts){

@@ -327,7 +327,7 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(201, {"ok": True, "id": did})
             return
-        if path in ("/api/accounts", "/api/balances", "/api/monthly-settle"):
+        if path in ("/api/accounts", "/api/balances", "/api/monthly-settle", "/api/monthly-pnl"):
             try:
                 body = self._read_body()
             except (ValueError, json.JSONDecodeError) as e:
@@ -350,6 +350,11 @@ class Handler(BaseHTTPRequestHandler):
                                         body.get("date") or datetime.date.today().isoformat(),
                                         body["balance_cents"], note=body.get("note") or "")
                     result = {"ok": True, "id": bid}
+                elif path == "/api/monthly-pnl":
+                    year = int(body.get("year") or datetime.date.today().year)
+                    month = int(body.get("month") or datetime.date.today().month)
+                    result = L.monthly_pnl(conn, fam_id, year, month,
+                                           body.get("amount_cents") or 0)
                 else:  # monthly-settle
                     year = int(body.get("year") or datetime.date.today().year)
                     month = int(body.get("month") or datetime.date.today().month)

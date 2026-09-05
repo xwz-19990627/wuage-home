@@ -265,6 +265,25 @@
     </div>
   </div>
 
+  <!-- 理财：月度盈亏 + 基金记录（独立页，2026-09-06 拆出） -->
+  <div id="view-licai" class="view">
+    <div class="card">
+      <h2>📈 理财盈亏 <span class="ver">基金/余额宝 · 每月记一次</span></h2>
+      <div class="row" style="margin-bottom:6px">
+        <select id="pnl-year" style="padding:5px"></select>
+        <select id="pnl-month" style="padding:5px"></select>
+        <input id="pnl-amount" type="number" step="0.01" placeholder="本月盈亏(元)，亏填负数" style="flex:1;min-width:0">
+        <button class="primary" id="btn-pnl">保存</button>
+      </div>
+      <div class="hint" id="pnl-hint"></div>
+    </div>
+    <div class="card">
+      <h2>📁 基金记录 <span class="ver">开发中 · 买入/卖出/持仓</span></h2>
+      <div class="hint">之后在这里记录每只基金的买入/卖出/持仓，以及你的交易策略；
+      行情/回测/策略分析用工具箱「理财助手」（/home/finance/）。</div>
+    </div>
+  </div>
+
   <!-- 财务：家庭总账 + 支出性质 -->
   <div id="view-finance" class="view">
     <div class="card" style="background:linear-gradient(135deg,#F7E8CF,#FDF6EA)">
@@ -282,16 +301,6 @@
         <button class="ghost" id="btn-ms-refresh" style="flex:1;display:none">本月已记 ✓</button>
       </div>
       <div class="hint" id="ms-hint"></div>
-    </div>
-    <div class="card">
-      <h2>📈 理财盈亏 <span class="ver">基金/余额宝 · 每月记一次</span></h2>
-      <div class="row" style="margin-bottom:6px">
-        <select id="pnl-year" style="padding:5px"></select>
-        <select id="pnl-month" style="padding:5px"></select>
-        <input id="pnl-amount" type="number" step="0.01" placeholder="本月盈亏(元)，亏填负数" style="flex:1;min-width:0">
-        <button class="primary" id="btn-pnl">保存</button>
-      </div>
-      <div class="hint" id="pnl-hint"></div>
     </div>
     <div class="card">
       <h2>🏦 资产账户 <span class="ver">按存款来源 · 月未更新一次</span></h2>
@@ -338,6 +347,7 @@
   <button class="on" data-view="ai">AI记账</button>
   <button data-view="ledger">概览</button>
   <button data-view="bills">账单</button>
+  <button data-view="licai">理财</button>
   <button data-view="finance">财务</button>
 </nav>
 
@@ -346,6 +356,7 @@
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
   var CATS = [], MEMS = [], CURRENT = null, DRAFT_ID = null, TOP_CATS = [];
+  var CAT_CHIPS = [], MEM_CHIPS = [], B_CAT = "", B_MEM = "";
   var COLORS = ["#D99025","#4A6FA5","#2E9E6B","#C0565A","#8B5E9E","#0E9AA7","#D97706","#A5678F","#6B7280","#9A937F"];
   var toastTimer = null;
 
@@ -423,7 +434,7 @@
     if(id==="ai") loadNatureCats();
     if(id==="ledger") loadDashboard();
     if(id==="bills") loadBills();
-
+    if(id==="licai") loadLicai();
     if(id==="finance") loadFinance();
     try{
       var hh=(id==="home")?"#/home":(id==="ledger"?"#/ledger":"#/ledger/"+id);
@@ -440,7 +451,7 @@
     var tb=ev.target.closest?ev.target.closest("#tabbar button"):null;
     if(tb){return;}
   });
-  ["ai","ledger","bills","finance"].forEach(function(v){
+  ["ai","ledger","bills","licai","finance"].forEach(function(v){
     document.querySelector("#tabbar button[data-view="+v+"]").addEventListener("click",function(){showView(v);});
   });
 
@@ -955,12 +966,14 @@
         loadPnl();loadNetworth();loadFinanceNature();
       }).catch(function(){showToast("保存失败","err");});
   }
+  function loadLicai(){
+    initPnlUI();
+    loadPnl();
+  }
   function loadFinance(){
     initMonthlySettleUI();
-    initPnlUI();
     loadNetworth();
     checkMonthlySettle();
-    loadPnl();
     loadFinanceNature();
   }
   function showCatForm(opts){

@@ -70,9 +70,21 @@
   亲属卡 19 笔修正为蛙哥名下支出（原误判 transfer）；亲情卡 113 笔=蛙哥。
   分类 15（+服饰/美妆/宠物）；备份 ledger-20260823-174914.db；面板重启生效；幂等去重 ✓。
 
+## 任务：DSH 模型扩展（2026-09-06）
+
+- ✅ **opencode-go 已加入 DeepSeek 视觉模型 deepseek-v4-flash-vision-exp**（官方 2026-08-21 上线，
+  文字价格带视觉）：写入 pi-ai 模型目录 opencode-go.json 的 openai-completions 段
+  （input=text+image，reasoning，价格同 v4-flash 0.14/0.28）。node 验证可解析 ✓。
+- ✅ **describe-image 工具已接该视觉模型**：web-ui-all cordis.patch.yml 给 describe-image 挂载
+  baseURL=https://opencode.ai/zen/go/v1、model=deepseek-v4-flash-vision-exp、
+  apiKeyEnv=OPENCODE_GO_API_KEY（凭据在 .credentials.yaml）；start-public-dsh-foreground.sh
+  已加幂等 auto-patch 防升级覆盖。重启 dsh-public 后生效。
+- ⚠️ 两处 node_modules 改动在重装 @earendil-works/pi-ai / web-ui-all 时会丢：
+  ① pi-ai 模型目录 ② describe-image patch（已由 start 脚本 auto-patch 自动复位）。
+
 ## 下一步（按优先级，全部在 v0.2.x 系列内）
 
-0. **[月度手动记账（用户自记）]** 之后每月自己记收支：主动收入=「工资」分类；
+0. **[月度手动记账（用户自记）】** 之后每月自己记收支：主动收入=「工资」分类；
    被动收入=「理财」；固定支出=nature fixed（居住/通讯/保险）；弹性=其余。
    AI 分析入口：scripts/finance_report.py（或直接 DSH 会话读库）→ 人话解读。
 1. **[布局升级 v0.2.0-rc.3]** spec 已写好（docs/specs/wuage-ui-layout-v0.2.x.md）：底部中央+记一笔、

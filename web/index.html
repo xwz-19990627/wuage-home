@@ -159,11 +159,9 @@
   <!-- 记账：工作区概览 -->
   <div id="view-ledger" class="view">
     <div class="card">
-      <h2>支出性质</h2>
+      <h2>支出性质 <span class="ver" id="n-month-label">--</span></h2>
       <div class="row" style="margin-bottom:6px">
-        <select id="n-year" style="padding:5px"></select>
         <div class="seg" id="n-seg"><button data-v="month" class="on">按月</button><button data-v="year">按年</button></div>
-        <select id="n-month" style="padding:5px"></select>
       </div>
       <div id="n-month-sec"></div>
       <div class="hint" style="margin:12px 0 2px">📅 全年汇总（<span id="n-year-label"></span>）</div>
@@ -432,7 +430,7 @@
     $("btn-home").style.display=isHome?"none":"";
     if(isHome){var g=$("d-greet");if(g)g.textContent="🏠 吾家 · "+(getDevUser()||"家人");}
     if(id==="ai") loadNatureCats();
-    if(id==="ledger"){loadDashboard();loadFinanceNature();}
+    if(id==="ledger"){loadDashboard();loadNature();}
     if(id==="bills") loadBills();
     if(id==="licai") loadLicai();
     if(id==="finance") loadFinance();
@@ -531,8 +529,8 @@
   }
   function initMonthSelect(){
     renderHMonth();
-    $("h-prev").onclick=function(){H_OFF--;renderHMonth();loadDashboard();};
-    $("h-next").onclick=function(){H_OFF++;renderHMonth();loadDashboard();};
+    $("h-prev").onclick=function(){H_OFF--;renderHMonth();loadDashboard();loadNature();};
+    $("h-next").onclick=function(){H_OFF++;renderHMonth();loadDashboard();loadNature();};
   }
 
   // ── 底部滚轮选择器（wheel picker，替代原生 select） ────────────────
@@ -878,7 +876,7 @@
       .then(function(r){return r.json();}).then(function(x){
         if(x.error){showToast(x.error,"err");return;}
         showToast(x.already?"该月已结算过":"已记入工资 + 公积金","ok");
-        checkMonthlySettle();loadNetworth();loadFinanceNature();
+        checkMonthlySettle();loadNetworth();loadNature();
       }).catch(function(){showToast("结算失败","err");});
   }
   function initMonthlySettleUI(){
@@ -898,32 +896,31 @@
     ny.addEventListener("change",checkMonthlySettle);
     nm.addEventListener("change",checkMonthlySettle);
   }
-  function loadFinanceNature(){
-    var ny=$("n-year"),nm=$("n-month"),now=new Date();
-    if(!ny.options.length){
-      [now.getFullYear(),now.getFullYear()-1].forEach(function(yy){
-        var o=document.createElement("option");o.value=String(yy);o.textContent=yy+"年";
-        if(yy===now.getFullYear())o.selected=true;ny.appendChild(o);
-      });
-      for(var i=1;i<=12;i++){
-        var o2=document.createElement("option");o2.value=String(i);o2.textContent=i+"月";
-        if(i===now.getMonth()+1)o2.selected=true;nm.appendChild(o2);
-      }
-      document.querySelectorAll("#n-seg button").forEach(function(b){
-        b.onclick=function(){
-          NVIEW=b.dataset.v;
-          document.querySelectorAll("#n-seg button").forEach(function(x){x.classList.toggle("on",x===b);});
-          loadFinanceNature();
-        };
-      });
-      ny.addEventListener("change",loadFinanceNature);
-      nm.addEventListener("change",loadFinanceNature);
-    }
-    var yr=ny.value||String(now.getFullYear());
-    var mo=(NVIEW==="month")?(nm.value||""):"";
-    nm.style.display=(NVIEW==="month")?"":"none";
+  var NATURE_BOUND=false;
+  function hoffYM(){
+    var now=new Date(),d=new Date(now.getFullYear(),now.getMonth()+H_OFF,1);
+    var m=d.getMonth()+1;
+    return {y:String(d.getFullYear()), m:String(m), label:d.getFullYear()+"年"+m+"月", yearLabel:d.getFullYear()+"年"};
+  }
+  function ensureNatureSeg(){
+    if(NATURE_BOUND)return;
+    NATURE_BOUND=true;
+    document.querySelectorAll("#n-seg button").forEach(function(b){
+      b.onclick=function(){
+        NVIEW=b.dataset.v;
+        document.querySelectorAll("#n-seg button").forEach(function(x){x.classList.toggle("on",x===b);});
+        loadNature();
+      };
+    });
+  }
+  // 支出性质跟随概览月份（H_OFF 箭头）联动，简称 loadNature
+  function loadNature(){
+    ensureNatureSeg();
+    var ym=hoffYM();
+    $("n-month-label").textContent=(NVIEW==="month")?ym.label:ym.yearLabel;
+    var url=(NVIEW==="month")?("api/nature?year="+ym.y+"&month="+ym.m):("api/nature?year="+ym.y);
     if(NVIEW==="year")$("n-month-sec").innerHTML="";
-    fetch("api/nature?year="+yr+(mo?"&month="+mo:"")).then(function(r){return r.json();})
+    fetch(url).then(function(r){return r.json();})
       .then(renderNature)
       .catch(function(e){$("n-year-sec").innerHTML="<div class='empty'>加载失败</div>";});
   }
@@ -963,7 +960,7 @@
       .then(function(r){return r.json();}).then(function(x){
         if(x.error){showToast(x.error,"err");return;}
         showToast(x.kind?(x.kind==="income"?"已记盈利 +"+yuan(x.cents):"已记亏损 -"+yuan(x.cents)):"已清除该月盈亏","ok");
-        loadPnl();loadNetworth();loadFinanceNature();
+        loadPnl();loadNetworth();loadNature();
       }).catch(function(){showToast("保存失败","err");});
   }
   function loadLicai(){
@@ -1110,7 +1107,7 @@
 
   $("f-date").value=todayS();
   // 原生下拉 → 滚轮选择器（分类/成员/收支类型/财务年月）
-  [["f-kind","收支类型"],["e-category","分类"],["e-member","成员"],["f-category","分类"],["f-member","成员"],["n-year","年份"],["n-month","月份"]].forEach(function(p){
+  [["f-kind","收支类型"],["e-category","分类"],["e-member","成员"],["f-category","分类"],["f-member","成员"]].forEach(function(p){
     var s=$(p[0]); if(s)pickerize(s,p[1]);
   });
   initMonthSelect();

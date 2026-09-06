@@ -159,6 +159,17 @@
   <!-- 记账：工作区概览 -->
   <div id="view-ledger" class="view">
     <div class="card">
+      <h2>支出性质</h2>
+      <div class="row" style="margin-bottom:6px">
+        <select id="n-year" style="padding:5px"></select>
+        <div class="seg" id="n-seg"><button data-v="month" class="on">按月</button><button data-v="year">按年</button></div>
+        <select id="n-month" style="padding:5px"></select>
+      </div>
+      <div id="n-month-sec"></div>
+      <div class="hint" style="margin:12px 0 2px">📅 全年汇总（<span id="n-year-label"></span>）</div>
+      <div id="n-year-sec"></div>
+    </div>
+    <div class="card">
       <div class="hint"><span class="mn-nav"><button class="mn-btn" id="h-prev">‹</button><span id="h-month">--</span><button class="mn-btn" id="h-next">›</button></span></div>
       <div class="big" id="d-total">--</div>
       <div class="meta-row"><span class="d-avg" id="d-avg"></span><span class="cmp" id="d-mom"></span><span class="cmp" id="d-yoy"></span></div>
@@ -319,17 +330,6 @@
         <button class="ghost" id="nw-edit-cancel">取消</button>
       </div>
     </div>
-    <div class="card">
-      <h2>支出性质</h2>
-      <div class="row" style="margin-bottom:6px">
-        <select id="n-year" style="padding:5px"></select>
-        <div class="seg" id="n-seg"><button data-v="month" class="on">按月</button><button data-v="year">按年</button></div>
-        <select id="n-month" style="padding:5px"></select>
-      </div>
-      <div id="n-month-sec"></div>
-      <div class="hint" style="margin:12px 0 2px">📅 全年汇总（<span id="n-year-label"></span>）</div>
-      <div id="n-year-sec"></div>
-    </div>
   </div>
 
 </div>
@@ -432,7 +432,7 @@
     $("btn-home").style.display=isHome?"none":"";
     if(isHome){var g=$("d-greet");if(g)g.textContent="🏠 吾家 · "+(getDevUser()||"家人");}
     if(id==="ai") loadNatureCats();
-    if(id==="ledger") loadDashboard();
+    if(id==="ledger"){loadDashboard();loadFinanceNature();}
     if(id==="bills") loadBills();
     if(id==="licai") loadLicai();
     if(id==="finance") loadFinance();
@@ -974,7 +974,6 @@
     initMonthlySettleUI();
     loadNetworth();
     checkMonthlySettle();
-    loadFinanceNature();
   }
   function showCatForm(opts){
     var f=$("n-cat-form");

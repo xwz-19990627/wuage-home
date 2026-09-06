@@ -1117,8 +1117,8 @@
   initMonthSelect();
   function viewFromHash(){
     var h=(location.hash||"").replace(/^#\/+?/,"");
-    if(h.slice(0,7)==="ledger/"){var s=h.split("/")[1]||"";return ["ai","bills","finance"].indexOf(s)>=0?s:"ledger";}
-    if(["home","ledger","ai","bills","finance"].indexOf(h)>=0)return h;
+    if(h.slice(0,7)==="ledger/"){var s=h.split("/")[1]||"";return ["ai","bills","licai","finance"].indexOf(s)>=0?s:"ledger";}
+    if(["home","ledger","ai","bills","licai","finance"].indexOf(h)>=0)return h;
     return "ai";
   }
   window.addEventListener("hashchange",function(){showView(viewFromHash());});

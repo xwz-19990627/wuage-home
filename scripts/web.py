@@ -225,6 +225,15 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, d)
             return
+        if path == "/api/funds":
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                d = L.list_positions(conn, fam_id)
+            finally:
+                conn.close()
+            self._json(200, d)
+            return
         if path == "/api/import/files":
             files = []
             if IB.UPLOAD_DIR.exists():
@@ -327,6 +336,56 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(201, {"ok": True, "id": did})
             return
+        if path == "/api/funds":
+            try:
+                body = self._read_body()
+            except (ValueError, json.JSONDecodeError) as e:
+                self._error(400, "bad body: {}".format(e))
+                return
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                pid = L.add_position(conn, fam_id, body.get("name"),
+                                     platform=body.get("platform") or "",
+                                     kind=body.get("kind") or "index",
+                                     cost_cents=body.get("cost_cents") or 0,
+                                     market_cents=body.get("market_cents") or 0,
+                                     holding_pnl_cents=body.get("holding_pnl_cents"),
+                                     total_pnl_cents=body.get("total_pnl_cents") or 0,
+                                     code=body.get("code") or "", note=body.get("note") or "")
+            except L.LedgerError as e:
+                conn.close()
+                self._error(400, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(201, {"ok": True, "id": pid})
+            return
+        if path.startswith("/api/funds/"):
+            m = re.match(r"^/api/funds/(d+)/trade$", path)
+            if m:
+                try:
+                    body = self._read_body()
+                except (ValueError, json.JSONDecodeError) as e:
+                    self._error(400, "bad body: {}".format(e))
+                    return
+                conn = L.connect()
+                try:
+                    fam_id = L.ensure_seed(conn)["family_id"]
+                    res = L.add_trade(conn, fam_id, int(m.group(1)), body.get("action"),
+                                      body.get("date"), body.get("amount_cents") or 0,
+                                      shares=body.get("shares"), fee_cents=body.get("fee_cents") or 0,
+                                      note=body.get("note") or "",
+                                      holding_pnl_delta=body.get("holding_pnl_delta"),
+                                      market_cents=body.get("market_cents"))
+                except (L.LedgerError, ValueError) as e:
+                    conn.close()
+                    self._error(400, str(e))
+                    return
+                finally:
+                    conn.close()
+                self._json(200, res)
+                return
         if path in ("/api/accounts", "/api/balances", "/api/monthly-settle", "/api/monthly-pnl"):
             try:
                 body = self._read_body()
@@ -450,6 +509,31 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, {"ok": True})
             return True
+        # 基金持仓 PATCH /api/funds/<id>
+        fp = urlparse(self.path).path
+        if fp.startswith("/api/funds/"):
+            try:
+                rid = int(fp.rsplit("/", 1)[1])
+            except ValueError:
+                self._error(400, "bad id")
+                return
+            try:
+                fields = self._read_body()
+            except (ValueError, json.JSONDecodeError) as e:
+                self._error(400, "bad body: {}".format(e))
+                return
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                L.update_position(conn, fam_id, rid, fields)
+            except L.LedgerError as e:
+                conn.close()
+                self._error(400, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(200, {"ok": True})
+            return
         if _by_id("categories", None) is not None:
             return
         m = ENTRY_RE.match(urlparse(self.path).path)
@@ -503,6 +587,26 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, {"ok": True})
             return True
+        # 基金持仓 DELETE /api/funds/<id>
+        fp = urlparse(self.path).path
+        if fp.startswith("/api/funds/"):
+            try:
+                rid = int(fp.rsplit("/", 1)[1])
+            except ValueError:
+                self._error(400, "bad id")
+                return
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                L.delete_position(conn, fam_id, rid)
+            except L.LedgerError as e:
+                conn.close()
+                self._error(400, str(e))
+                return
+            finally:
+                conn.close()
+            self._json(200, {"ok": True})
+            return
         if _del_by_id("categories") is not None:
             return
         if _del_by_id("members") is not None:

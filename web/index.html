@@ -287,9 +287,40 @@
       <div class="hint" id="pnl-hint"></div>
     </div>
     <div class="card">
-      <h2>📁 基金记录 <span class="ver">开发中 · 买入/卖出/持仓</span></h2>
-      <div class="hint">之后在这里记录每只基金的买入/卖出/持仓，以及你的交易策略；
-      行情/回测/策略分析用工具箱「理财助手」（/home/finance/）。</div>
+      <h2>📁 基金持仓 <span class="ver">成本/市值/收益 · 可加减仓</span></h2>
+      <div id="fund-summary" class="hint" style="margin-bottom:8px"></div>
+      <div id="fund-list"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="ghost" id="btn-fund-add" style="flex:1">+ 添加基金</button>
+        <button class="ghost" id="btn-fund-refresh" style="flex:1">刷新</button>
+      </div>
+    </div>
+    <div id="fund-edit" class="card" style="display:none">
+      <h2 id="fund-edit-title">基金</h2>
+      <div class="row"><input id="fe-name" placeholder="基金名称" style="flex:1"></div>
+      <div class="row" style="margin-top:6px">
+        <select id="fe-platform" style="flex:1">
+          <option value="蚂蚁">蚂蚁</option><option value="雪球">雪球</option>
+          <option value="天天">天天</option><option value="其他">其他</option>
+        </select>
+        <select id="fe-kind" style="flex:1">
+          <option value="index">指数</option><option value="etf">ETF联接</option>
+          <option value="qdii">QDII</option><option value="mixed">混合</option>
+          <option value="bond">债基</option><option value="other">其他</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input id="fe-cost" type="number" step="0.01" placeholder="成本(元)" style="flex:1">
+        <input id="fe-market" type="number" step="0.01" placeholder="市值(元)" style="flex:1">
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input id="fe-holding" type="number" step="0.01" placeholder="持有收益(元)" style="flex:1">
+        <input id="fe-total" type="number" step="0.01" placeholder="累计收益(元)" style="flex:1">
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="primary" id="fe-save" style="flex:1">保存</button>
+        <button class="ghost" id="fe-cancel">取消</button>
+      </div>
     </div>
   </div>
 
@@ -963,9 +994,107 @@
         loadPnl();loadNetworth();loadNature();
       }).catch(function(){showToast("保存失败","err");});
   }
+  // ── 基金持仓 ──────────────────────────────────
+  var FUND_EDIT_ID=null;
+  function loadFunds(){
+    fetch("api/funds").then(function(r){return r.json();}).then(renderFunds)
+      .catch(function(){if($("fund-list"))$("fund-list").innerHTML="<div class='empty'>加载失败</div>";});
+  }
+  function fmtPnl(v){
+    var c=Math.round(v/100);
+    return c>=0?("+"+c):String(c);
+  }
+  function pnlColor(v){return v>=0?"#2E9E6B":"#D9534F";}
+  function renderFunds(d){
+    var sum=$("fund-summary");
+    sum.innerHTML="共 <b>"+d.positions.length+"</b> 只 · 市值 <b>"+yuan(d.total_market_cents)+"</b> 元 · 成本 "+
+      yuan(d.total_cost_cents)+" 元 · 持有收益 <b style='color:"+pnlColor(d.total_holding_pnl_cents)+"'>"+fmtPnl(d.total_holding_pnl_cents)+"</b> 元 · 累计 "+
+      "<span style='color:"+pnlColor(d.total_pnl_cents)+"'>"+fmtPnl(d.total_pnl_cents)+"</span> 元";
+    var el=$("fund-list");el.innerHTML="";
+    d.positions.forEach(function(p){
+      var row=document.createElement("div");
+      row.style.cssText="padding:9px 0;border-bottom:1px solid var(--line)";
+      row.innerHTML=
+        "<div style='display:flex;align-items:center;gap:8px'>"+
+          "<div style='flex:1;min-width:0'>"+
+            "<div style='font-size:14px;font-weight:600'>"+esc(p.name)+" <span style='font-size:10px;color:var(--sub);font-weight:400'>"+esc(p.platform)+" · "+esc(p.kind_name)+"</span></div>"+
+            "<div style='font-size:11px;color:var(--sub)'>市值 "+yuan(p.market_cents)+" 元 · 成本 "+yuan(p.cost_cents)+" 元</div>"+
+          "</div>"+
+          "<div style='text-align:right'><span style='font-size:14px;font-weight:700;color:"+pnlColor(p.holding_pnl_cents)+"'>"+fmtPnl(p.holding_pnl_cents)+"</span><span style='font-size:10px;color:var(--sub)'> 持有</span></div>"+
+        "</div>"+
+        "<div style='display:flex;gap:6px;margin-top:6px'>"+
+          "<button class='ghost' data-fa='buy' data-id='"+p.id+"' style='padding:4px 10px;font-size:12px;flex:1'>加仓</button>"+
+          "<button class='ghost' data-fa='sell' data-id='"+p.id+"' style='padding:4px 10px;font-size:12px;flex:1'>减仓</button>"+
+          "<button class='ghost' data-fe='1' data-id='"+p.id+"' data-name='"+esc(p.name)+"' style='padding:4px 10px;font-size:12px;flex:1'>编辑</button>"+
+          "<button class='ghost' data-fd='1' data-id='"+p.id+"' data-name='"+esc(p.name)+"' style='padding:4px 10px;font-size:12px;flex:1'>删</button>"+
+        "</div>";
+      row.querySelector("[data-fa]").onclick=function(){fundTrade(p.id,this.getAttribute("data-fa"),p.name);};
+      row.querySelector("[data-fe]").onclick=function(){openFundEdit(p);};
+      row.querySelector("[data-fd]").onclick=function(){delFund(p.id,p.name);};
+      el.appendChild(row);
+    });
+    if(!d.positions.length)el.innerHTML="<div class='empty'>还没有基金持仓，点「+ 添加基金」录入</div>";
+  }
+  function fundTrade(id, action, name){
+    var tip=(action==="buy"?"加仓":"减仓");
+    var amt=prompt(tip+"「"+name+"」——输入金额(元)：");
+    if(amt===null)return;
+    var v=parseFloat(amt);
+    if(!(v>0)){showToast("金额无效","err");return;}
+    fetch("api/funds/"+id+"/trade",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action:action,date:todayS(),amount_cents:Math.round(v*100)})})
+      .then(function(r){return r.json();}).then(function(x){
+        if(x.error){showToast(x.error,"err");return;}
+        showToast(tip+"成功，新市值 "+yuan(x.market_cents),"ok");
+        loadFunds();
+      }).catch(function(){showToast("操作失败","err");});
+  }
+  function openFundEdit(p){
+    FUND_EDIT_ID=p?p.id:null;
+    $("fund-edit").style.display="";
+    $("fund-edit-title").textContent=p?("编辑 · "+p.name):"添加基金";
+    $("fe-name").value=p?p.name:"";
+    $("fe-platform").value=p?p.platform:"蚂蚁";
+    $("fe-kind").value=p?p.kind:"index";
+    $("fe-cost").value=p?yuan(p.cost_cents):"";
+    $("fe-market").value=p?yuan(p.market_cents):"";
+    $("fe-holding").value=p?yuan(p.holding_pnl_cents):"";
+    $("fe-total").value=p?yuan(p.total_pnl_cents):"";
+  }
+  function yuanCents(v){var f=parseFloat(v);return isFinite(f)?Math.round(f*100):0;}
+  function saveFund(){
+    var body={name:$("fe-name").value,platform:$("fe-platform").value,kind:$("fe-kind").value,
+      cost_cents:yuanCents($("fe-cost").value),market_cents:yuanCents($("fe-market").value),
+      holding_pnl_cents:yuanCents($("fe-holding").value),total_pnl_cents:yuanCents($("fe-total").value)};
+    if(!body.name){showToast("名称不能为空","err");return;}
+    var url=FUND_EDIT_ID?("api/funds/"+FUND_EDIT_ID):"api/funds";
+    var method=FUND_EDIT_ID?"PATCH":"POST";
+    fetch(url,{method:method,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+      .then(function(r){return r.json();}).then(function(x){
+        if(x.error){showToast(x.error,"err");return;}
+        $("fund-edit").style.display="none";
+        showToast(FUND_EDIT_ID?"已更新":"已添加","ok");
+        loadFunds();loadNetworth();
+      }).catch(function(){showToast("保存失败","err");});
+  }
+  function delFund(id,name){
+    if(!confirm("删除「"+name+"」持仓？"))return;
+    fetch("api/funds/"+id,{method:"DELETE"}).then(function(r){return r.json();}).then(function(x){
+      if(x.error){showToast(x.error,"err");return;}
+      showToast("已删除","ok");loadFunds();loadNetworth();
+    }).catch(function(){showToast("删除失败","err");});
+  }
+  function initFundUI(){
+    $("btn-fund-add").onclick=function(){openFundEdit(null);};
+    $("btn-fund-refresh").onclick=loadFunds;
+    $("fe-save").onclick=saveFund;
+    $("fe-cancel").onclick=function(){$("fund-edit").style.display="none";};
+  }
   function loadLicai(){
     initPnlUI();
     loadPnl();
+    initFundUI();
+    loadFunds();
   }
   function loadFinance(){
     initMonthlySettleUI();

@@ -1268,3 +1268,173 @@ def monthly_pnl(conn, family_id, year, month, amount_cents):
          remark, None, "monthly", "monthly", None, None, None, "[]", None, now))
     conn.commit()
     return {"saved": cur.lastrowid, "kind": kind, "cents": cents}
+# ═════════════════ 基金持仓模块（2026-09-06，用户设计拍板）════════════════
+
+# 持仓主表：每只基金一条，存 成本/市值/持有收益/累计收益，供 AI 分析 + 净值联动。
+# 加减仓：fund_trades 记流水，同时更新持仓的成本/市值（buy: cost+=amount, market+=amount；
+#        sell: cost-=amount, market-=amount，并允许带 holding_pnl_delta 微调）。
+
+
+def ensure_fund_schema(conn):
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS fund_positions (
+          id               INTEGER PRIMARY KEY,
+          family_id        INTEGER NOT NULL,
+          platform         TEXT NOT NULL DEFAULT '',
+          code             TEXT NOT NULL DEFAULT '',
+          name             TEXT NOT NULL,
+          kind             TEXT NOT NULL DEFAULT 'index',
+          cost_cents       INTEGER NOT NULL DEFAULT 0,
+          market_cents     INTEGER NOT NULL DEFAULT 0,
+          holding_pnl_cents INTEGER NOT NULL DEFAULT 0,
+          total_pnl_cents  INTEGER NOT NULL DEFAULT 0,
+          note             TEXT NOT NULL DEFAULT '',
+          created_at       TEXT NOT NULL,
+          updated_at       TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS fund_trades (
+          id           INTEGER PRIMARY KEY,
+          family_id    INTEGER NOT NULL,
+          position_id  INTEGER NOT NULL,
+          date         TEXT NOT NULL,
+          action       TEXT NOT NULL,
+          amount_cents INTEGER NOT NULL,
+          shares       REAL,
+          fee_cents    INTEGER NOT NULL DEFAULT 0,
+          note         TEXT NOT NULL DEFAULT '',
+          created_at   TEXT NOT NULL
+        );
+        """)
+    conn.commit()
+
+
+FUND_KINDS = {
+    "index": "指数", "etf": "ETF联接", "qdii": "QDII", "mixed": "混合",
+    "bond": "债基", "money": "货币", "other": "其他",
+}
+
+
+def list_positions(conn, family_id):
+    ensure_fund_schema(conn)
+    rows = conn.execute(
+        "SELECT * FROM fund_positions WHERE family_id=? ORDER BY market_cents DESC",
+        (family_id,)).fetchall()
+    out = []
+    for r in rows:
+        d = row_to_dict(r)
+        d["kind_name"] = FUND_KINDS.get(d.get("kind"), d.get("kind", ""))
+        out.append(d)
+    total_market = sum(r["market_cents"] for r in out)
+    total_cost = sum(r["cost_cents"] for r in out)
+    total_holding = sum(r["holding_pnl_cents"] for r in out)
+    total_pnl = sum(r["total_pnl_cents"] for r in out)
+    return {"positions": out, "total_market_cents": total_market,
+            "total_cost_cents": total_cost, "total_holding_pnl_cents": total_holding,
+            "total_pnl_cents": total_pnl}
+
+
+def add_position(conn, family_id, name, platform="", kind="index", cost_cents=0,
+                 market_cents=0, holding_pnl_cents=None, total_pnl_cents=0, code="", note=""):
+    ensure_fund_schema(conn)
+    name = (name or "").strip()
+    if not name:
+        raise LedgerError("基金名称不能为空")
+    if holding_pnl_cents is None:
+        holding_pnl_cents = market_cents - cost_cents
+    now = now_iso()
+    cur = conn.execute(
+        "INSERT INTO fund_positions (family_id, platform, code, name, kind, cost_cents,"
+        " market_cents, holding_pnl_cents, total_pnl_cents, note, created_at, updated_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (family_id, platform, code, name, kind, int(cost_cents), int(market_cents),
+         int(holding_pnl_cents), int(total_pnl_cents), note, now, now))
+    conn.commit()
+    return cur.lastrowid
+
+
+def update_position(conn, family_id, pid, fields):
+    ensure_fund_schema(conn)
+    row = conn.execute("SELECT * FROM fund_positions WHERE id=? AND family_id=?",
+                       (pid, family_id)).fetchone()
+    if row is None:
+        raise LedgerError("持仓不存在")
+    sets, params = [], []
+    for field in ("name", "platform", "code", "note"):
+        if field in fields:
+            sets.append(field + "=?"); params.append((fields[field] or "").strip())
+    for field in ("kind",):
+        if field in fields:
+            sets.append(field + "=?"); params.append(fields[field])
+    for field in ("cost_cents", "market_cents", "holding_pnl_cents", "total_pnl_cents"):
+        if field in fields:
+            try:
+                params.append(int(fields[field]))
+            except (TypeError, ValueError):
+                raise LedgerError("{} must be int".format(field))
+            sets.append(field + "=?")
+    if "holding_pnl_cents" not in fields and ("cost_cents" in fields or "market_cents" in fields):
+        # 未显式给收益时，按 市值-成本 重算持有收益
+        cost = int(fields.get("cost_cents", row["cost_cents"]))
+        market = int(fields.get("market_cents", row["market_cents"]))
+        sets.append("holding_pnl_cents=?"); params.append(market - cost)
+    if not sets:
+        raise LedgerError("nothing to update")
+    sets.append("updated_at=?"); params.append(now_iso())
+    params.append(pid)
+    conn.execute("UPDATE fund_positions SET {} WHERE id=?".format(", ".join(sets)), params)
+    conn.commit()
+    return pid
+
+
+def delete_position(conn, family_id, pid):
+    ensure_fund_schema(conn)
+    row = conn.execute("SELECT * FROM fund_positions WHERE id=? AND family_id=?",
+                       (pid, family_id)).fetchone()
+    if row is None:
+        raise LedgerError("持仓不存在")
+    conn.execute("DELETE FROM fund_trades WHERE position_id=?", (pid,))
+    conn.execute("DELETE FROM fund_positions WHERE id=?", (pid,))
+    conn.commit()
+    return pid
+
+
+def add_trade(conn, family_id, pid, action, date, amount_cents, shares=None,
+              fee_cents=0, note="", holding_pnl_delta=None, market_cents=None):
+    """记录一次加/减仓，并同步更新持仓的成本与市值。
+      buy:  cost += amount；market += amount（新增按本金计入市值）
+      sell: cost -= amount；market -= amount（按本金减）
+      可选 holding_pnl_delta 微调持有收益（如卖出时已实现盈亏）。
+      可选 market_cents 直接指定新的市值（外部估值覆盖）。"""
+    ensure_fund_schema(conn)
+    row = conn.execute("SELECT * FROM fund_positions WHERE id=? AND family_id=?",
+                       (pid, family_id)).fetchone()
+    if row is None:
+        raise LedgerError("持仓不存在")
+    if action not in ("buy", "sell"):
+        raise LedgerError("action 必须 buy/sell")
+    amount = int(amount_cents)
+    if amount <= 0:
+        raise LedgerError("金额必须为正")
+    d = parse_date(date)
+    now = now_iso()
+    cur = conn.execute(
+        "INSERT INTO fund_trades (family_id, position_id, date, action, amount_cents, shares,"
+        " fee_cents, note, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+        (family_id, pid, d, action, amount, shares, int(fee_cents or 0), note, now))
+    delta = amount if action == "buy" else -amount
+    new_cost = max(0, row["cost_cents"] + delta)
+    if market_cents is not None:
+        new_market = int(market_cents)
+    else:
+        new_market = max(0, row["market_cents"] + delta)
+    new_holding = new_market - new_cost
+    if holding_pnl_delta is not None:
+        new_holding = row["holding_pnl_cents"] + int(holding_pnl_delta)
+    conn.execute(
+        "UPDATE fund_positions SET cost_cents=?, market_cents=?, holding_pnl_cents=?,"
+        " updated_at=? WHERE id=?",
+        (new_cost, new_market, new_holding, now, pid))
+    conn.commit()
+    return {"trade_id": cur.lastrowid, "cost_cents": new_cost,
+            "market_cents": new_market, "holding_pnl_cents": new_holding}

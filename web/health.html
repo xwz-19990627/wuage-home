@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>健康助手</title>
+<style>
+  :root{
+    --main:#2E9E6B;--main-d:#25875A;--bg:#F4F7F5;--card:#fff;--line:#E3E9E4;
+    --sub:#6E7F72;--ink:#26302A;--warn:#C0563F;--warnbg:#FBEAE5;--okbg:#E4F4EB;--lowbg:#E6EEF8;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 -apple-system,BlinkMacSystemFont,
+       "PingFang SC","Microsoft YaHei",sans-serif;display:flex;flex-direction:column}
+
+  /* ── 顶栏 ─────────────────────────────────────────── */
+  header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;
+         padding:10px 14px 0}
+  .htop{display:flex;align-items:center;gap:10px}
+  .htop h1{margin:0;font-size:17px;font-weight:600;flex:1}
+  .htop h1 small{font-weight:400;color:var(--sub);font-size:12px;margin-left:6px}
+  .who{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:none}
+  .who::-webkit-scrollbar{display:none}
+  .who button{flex:0 0 auto;padding:6px 14px;border-radius:999px;border:1px solid var(--line);
+              background:#fff;font-size:13.5px;color:var(--ink);cursor:pointer;white-space:nowrap}
+  .who button.on{background:var(--main);border-color:var(--main);color:#fff;font-weight:600}
+  .who button.add{border-style:dashed;color:var(--sub);padding:6px 11px}
+  .tabs{display:flex;gap:2px;border-top:1px solid var(--line)}
+  .tabs button{flex:1;padding:10px 4px;border:0;background:none;font-size:14.5px;color:var(--sub);
+               cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+  .tabs button.on{color:var(--main);border-bottom-color:var(--main);font-weight:600}
+
+  /* ── 布局 ─────────────────────────────────────────── */
+  main{flex:1;min-height:0;display:flex;flex-direction:column}
+  .view{display:none;flex:1;min-height:0;flex-direction:column}
+  .view.on{display:flex}
+  .wrap{max-width:760px;width:100%;margin:0 auto;padding:14px;flex:1;min-height:0;overflow-y:auto;
+        -webkit-overflow-scrolling:touch}
+
+  /* ── 对话 ─────────────────────────────────────────── */
+  #chat-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #chat-inner{max-width:760px;margin:0 auto;padding:14px 14px 4px;display:flex;flex-direction:column;gap:12px}
+  .msg{max-width:88%;padding:10px 13px;border-radius:14px;white-space:pre-wrap;word-break:break-word;
+       font-size:15px}
+  .msg.me{align-self:flex-end;background:var(--main);color:#fff;border-bottom-right-radius:5px}
+  .msg.ai{align-self:flex-start;background:var(--card);border:1px solid var(--line);
+          border-bottom-left-radius:5px}
+  .msg.ai.streaming::after{content:"▍";color:var(--main);animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:0}}
+  .msg .note{margin-top:8px;padding-top:7px;border-top:1px dashed var(--line);font-size:12.5px;color:var(--sub)}
+  .msg .note b{color:var(--main)}
+  .empty{text-align:center;color:var(--sub);padding:26px 10px;font-size:14px;line-height:2}
+  .empty .big{font-size:40px;display:block;margin-bottom:6px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+  .chips button{padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:#fff;
+                font-size:13.5px;color:var(--ink);cursor:pointer;font-family:inherit}
+  .chips button:active{background:#EEF4F0}
+  .att{background:#F0F7F3;border:1px solid #CFE6DA;border-radius:10px;padding:8px 11px;
+       font-size:13px;margin-top:8px}
+  .att.bad{background:var(--warnbg);border-color:#F0C9BE}
+  .att ul{margin:6px 0 0;padding-left:18px}
+  .att li{color:var(--warn)}
+
+  /* ── 输入区 ───────────────────────────────────────── */
+  #composer{border-top:1px solid var(--line);background:var(--card);padding:8px 12px calc(8px + env(safe-area-inset-bottom))}
+  .cwrap{max-width:760px;margin:0 auto}
+  #pending{display:none;gap:6px;flex-wrap:wrap;margin-bottom:7px}
+  #pending .p{display:flex;align-items:center;gap:6px;background:#EEF4F0;border:1px solid #CFE6DA;
+              border-radius:8px;padding:4px 8px;font-size:12.5px}
+  #pending .p b{font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #pending .p span{cursor:pointer;color:var(--warn);font-weight:700}
+  .crow{display:flex;gap:8px;align-items:flex-end}
+  #input{flex:1;min-height:42px;max-height:150px;padding:10px 12px;border:1px solid var(--line);
+         border-radius:12px;font:inherit;resize:none;outline:none;background:#fff;line-height:1.5}
+  #input:focus{border-color:var(--main)}
+  .icbtn{flex:0 0 42px;height:42px;border-radius:12px;border:1px solid var(--line);background:#fff;
+         font-size:19px;cursor:pointer;line-height:1;padding:0}
+  #send{flex:0 0 60px;height:42px;border-radius:12px;border:0;background:var(--main);color:#fff;
+        font-size:15px;font-weight:600;cursor:pointer;font-family:inherit}
+  #send:disabled{opacity:.5;cursor:default}
+  .hint{color:var(--sub);font-size:11.5px;margin-top:6px;text-align:center}
+
+  /* ── 通用卡片/表单 ────────────────────────────────── */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:7px}
+  .card h2 .cnt{font-weight:400;color:var(--sub);font-size:12.5px}
+  .card .desc{color:var(--sub);font-size:12.5px;margin:0 0 12px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+  .f{display:flex;flex-direction:column;gap:4px}
+  .f.wide{grid-column:1/-1}
+  .f label{font-size:12.5px;color:var(--sub)}
+  .f input,.f textarea,.f select{padding:8px 10px;border:1px solid var(--line);border-radius:9px;
+        font:inherit;font-size:14px;background:#fff;outline:none;width:100%}
+  .f input:focus,.f textarea:focus{border-color:var(--main)}
+  .f textarea{min-height:62px;resize:vertical;line-height:1.5}
+  .f .hint2{font-size:11.5px;color:#9AA79E}
+  .btnrow{display:flex;gap:9px;align-items:center;margin-top:12px;flex-wrap:wrap}
+  button.primary{padding:10px 20px;border-radius:10px;border:0;background:var(--main);color:#fff;
+                 font:inherit;font-size:14.5px;font-weight:600;cursor:pointer}
+  button.ghost{padding:9px 15px;border-radius:10px;border:1px solid var(--line);background:#fff;
+               font:inherit;font-size:14px;color:var(--ink);cursor:pointer}
+  button.ghost.danger{color:var(--warn);border-color:#EFCFC6}
+  .saved{color:var(--main);font-size:13px}
+  .item{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);
+        font-size:14px;align-items:flex-start}
+  .item:last-child{border-bottom:0}
+  .item .meta{color:var(--sub);font-size:12px;display:block;margin-top:2px}
+  .pill{padding:2px 9px;border-radius:999px;font-size:11.5px;white-space:nowrap;flex:0 0 auto}
+  .pill.ok{background:var(--okbg);color:#1E7A4F}
+  .pill.high{background:var(--warnbg);color:var(--warn)}
+  .pill.low{background:var(--lowbg);color:#2C5F8A}
+  .pill.mut{background:#EEF1EE;color:var(--sub)}
+  .x{cursor:pointer;color:#B9C4BC;font-size:15px;padding:0 2px;flex:0 0 auto}
+  .x:hover{color:var(--warn)}
+  .tag{display:inline-block;background:#EEF4F0;border-radius:6px;padding:1px 7px;font-size:12px;
+       margin:0 4px 4px 0}
+  table.ind{width:100%;border-collapse:collapse;font-size:13.5px}
+  table.ind th{color:var(--sub);font-weight:500;text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);
+               font-size:12.5px}
+  table.ind td{padding:6px;border-bottom:1px solid #F2F5F2}
+  table.ind tr:last-child td{border-bottom:0}
+  .planbody{background:#F6F9F6;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13.5px;
+            line-height:1.65;color:var(--ink)}
+  #toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%) translateY(14px);background:#26302A;
+         color:#fff;padding:9px 17px;border-radius:10px;font-size:13.5px;opacity:0;pointer-events:none;
+         transition:.22s;z-index:99;max-width:86vw;text-align:center}
+  #toast.show{opacity:.95;transform:translateX(-50%)}
+  #toast.err{background:var(--warn)}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);
+        border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="htop">
+    <h1>🏥️ 健康助手<small id="model-note"></small></h1>
+    <button class="ghost" id="btn-new-conv" title="开一段新对话（当前这段会留在历史里，不会丢）">＋️ 新对话</button>
+  </div>
+  <div class="who" id="who"></div>
+  <div class="tabs">
+    <button id="tab-chat" class="on" onclick="showTab('chat')">💬️ 问健康</button>
+    <button id="tab-file" onclick="showTab('file')">📋️ 健康档案</button>
+  </div>
+</header>
+
+<main>
+  <!-- ══ 主页：AI 问答 ══ -->
+  <section class="view on" id="view-chat">
+    <div id="chat-scroll"><div id="chat-inner"></div></div>
+    <div id="composer">
+      <div class="cwrap">
+        <div id="pending"></div>
+        <div class="crow">
+          <button class="icbtn" id="btn-attach" title="上传体检报告">📎️</button>
+          <textarea id="input" rows="1" placeholder="问点什么，或直接说「今天跑了5公里」…"></textarea>
+          <button id="send">发送</button>
+        </div>
+        <div class="hint">📎️ 支持体检报告 PDF / 图片，自动解析入库 · 聊天里说的事会自动记进档案</div>
+      </div>
+      <input type="file" id="file-input" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.tif,.tiff,.txt,.csv,.json,.md" style="display:none">
+    </div>
+  </section>
+
+  <!-- ══ 档案页 ══ -->
+  <section class="view" id="view-file">
+    <div class="wrap">
+      <div id="file-body"></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var PERSONS = [], CUR = null, META = null, BUSY = false, PENDING = [], HIST = {}, CONV = {};
+
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+function todayS(){
+  var d = new Date(), m = ("0"+(d.getMonth()+1)).slice(-2), dd = ("0"+d.getDate()).slice(-2);
+  return d.getFullYear()+"-"+m+"-"+dd;
+}
+function toast(msg, isErr){
+  var t = $("toast");
+  t.textContent = msg;
+  t.className = "show" + (isErr ? " err" : "");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function(){ t.className = ""; }, 2600);
+}
+function api(path, opts){
+  return fetch(path, opts).then(function(r){
+    return r.json().catch(function(){ return {ok:false, error:"服务返回不是 JSON（HTTP "+r.status+"）"}; });
+  }).then(function(d){
+    if(d && d.error) throw new Error(d.error);
+    return d;
+  });
+}
+
+/* ── 身份：跟记账共用这台设备的「这是谁」 ───────────────────── */
+function devUser(){
+  try{ var n = localStorage.getItem("wuage_device_user") || ""; return n === "本人" ? "" : n; }catch(e){ return ""; }
+}
+function setDevUser(n){
+  try{ localStorage.setItem("wuage_device_user", n); }catch(e){}
+}
+
+/* ── 成员 ───────────────────────────────────────────────── */
+function loadPersons(){
+  return api("api/persons").then(function(d){
+    PERSONS = d.persons || [];
+    var want = devUser();
+    CUR = null;
+    for(var i=0;i<PERSONS.length;i++){ if(want && PERSONS[i].name === want) CUR = PERSONS[i]; }
+    if(!CUR) CUR = PERSONS[0] || null;
+    if(CUR) setDevUser(CUR.name);
+    renderWho();
+  });
+}
+function renderWho(){
+  var el = $("who");
+  el.innerHTML = "";
+  PERSONS.forEach(function(p){
+    var b = document.createElement("button");
+    b.textContent = p.name + (p.role === "self" ? " · 本人" : "");
+    if(CUR && p.id === CUR.id) b.className = "on";
+    b.onclick = function(){
+      if(CUR && p.id === CUR.id) return;
+      CUR = p; setDevUser(p.name); renderWho();
+      loadConversation(); loadFile();
+    };
+    el.appendChild(b);
+  });
+  var add = document.createElement("button");
+  add.className = "add"; add.textContent = "＋️";
+  add.title = "添加家人";
+  add.onclick = function(){
+    var n = prompt("新成员的名字？");
+    if(!n || !n.trim()) return;
+    api("api/persons", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({name: n.trim(), role:"family"})})
+      .then(function(){ return loadPersons(); })
+      .then(function(){ toast("已添加 " + n.trim()); })
+      .catch(function(e){ toast(e.message, true); });
+  };
+  el.appendChild(add);
+}
+
+/* ── Tab 切换 ───────────────────────────────────────────── */
+var TAB = "chat";
+function showTab(t){
+  TAB = t;
+  $("tab-chat").className = (t === "chat") ? "on" : "";
+  $("tab-file").className = (t === "file") ? "on" : "";
+  $("view-chat").className = "view" + (t === "chat" ? " on" : "");
+  $("view-file").className = "view" + (t === "file" ? " on" : "");
+  if(t === "file") loadFile();
+  else setTimeout(function(){ $("input").focus(); }, 50);
+}
+
+/* ── 聊天渲染 ───────────────────────────────────────────── */
+function msgNode(cls, text){
+  var d = document.createElement("div");
+  d.className = "msg " + cls;
+  d.textContent = text;
+  return d;
+}
+function scrollBottom(){
+  var s = $("chat-scroll");
+  s.scrollTop = s.scrollHeight;
+}
+function actionsNote(actions, attachments){
+  var lines = [];
+  (attachments || []).forEach(function(a){
+    if(!a.ok){ lines.push("📄️ " + esc(a.file) + " 解析失败：" + esc(a.error || "")); return; }
+    if(a.not_a_report){
+      lines.push("📄️ 《" + esc(a.file) + "》<b>看起来不是体检报告</b>" +
+        (a.summary ? "：" + esc(a.summary) : "") +
+        " —— 没找到检查指标，所以没有入档。换一份再传吧。");
+      return;
+    }
+    lines.push("📄️ 已解析《" + esc(a.file) + "》→ " + a.indicator_count + " 项指标" +
+      (a.abnormal_count ? "，<b>异常 " + a.abnormal_count + " 项</b>" : ""));
+    if(a.name_match === false){
+      lines.push("⚠️ <b>姓名对不上</b>：报告上写的是「" +
+        esc(a.person_name_on_report || "（没写姓名）") + "」，不是当前选的这个人 —— " +
+        "先确认下是不是传错人了。");
+    }
+    if(a.truncated){
+      lines.push("⚠️ <b>报告太长被截断</b>：共 " + a.pages_total + " 页，只解析了前 " +
+        a.pages_parsed + " 页 —— 后面几页<b>没有入库</b>，建议拆成两份分别上传。");
+    }
+  });
+  (actions || []).forEach(function(x){
+    var t = x.tool, a = x.args || {}, ok = !/失败/.test(x.result || "");
+    var mark = ok ? "" : "（失败）";
+    if(t === "record_add") lines.push("📝️ 记下了" + mark + "：" + esc(a.content || ""));
+    else if(t === "memory_add") lines.push("🧠️ 记住了" + mark + "：" + esc(a.content || ""));
+    else if(t === "indicator_add") lines.push("🩺️ 记下指标" + mark + "：" + esc(a.name || "") + " " + esc(a.value || ""));
+    else if(t === "profile_update") lines.push("👤️ 更新了档案字段" + mark + "：" + esc(Object.keys(a.fields || {}).join("、")));
+    else if(t === "plan_save") lines.push("📋️ 存了计划" + mark + "：" + esc(a.title || a.kind || ""));
+    else if(t === "plan_update") lines.push("📋️ 更新了计划" + mark + " #" + esc(a.plan_id || ""));
+    else if(t) lines.push("🔧️ " + esc(t) + "：" + esc(x.result || ""));
+  });
+  if(!lines.length) return null;
+  var d = document.createElement("div");
+  d.className = "note";
+  d.innerHTML = lines.join("<br>");
+  return d;
+}
+function renderChat(){
+  var inner = $("chat-inner");
+  inner.innerHTML = "";
+  var h = (CUR && HIST[CUR.id]) || [];
+  if(!h.length){
+    var e = document.createElement("div");
+    e.className = "empty";
+    e.innerHTML = "<span class='big'>🩺️</span>我是 " + esc(CUR ? CUR.name : "") +
+      " 的健康助手<br>传一份体检报告，或者直接问我" +
+      "<div class='chips'>" +
+      "<button onclick=\"quick('我最近体检报告你看了吗？说说重点')\">看看我的体检报告</button>" +
+      "<button onclick=\"quick('我最近总觉得累，可能是什么原因？')\">我最近总觉得累</button>" +
+      "<button onclick=\"quick('今天中午吃了麻辣烫，晚上跑了3公里')\">记一下今天的饮食运动</button>" +
+      "</div>";
+    inner.appendChild(e);
+  } else {
+    h.forEach(function(m){
+      if(m.role === "user"){ inner.appendChild(msgNode("me", m.content)); return; }
+      var node = msgNode("ai", m.content);
+      var note = actionsNote(m.actions || [], []);
+      if(note) node.appendChild(note);
+      inner.appendChild(node);
+    });
+  }
+  scrollBottom();
+}
+
+/* ── 会话：上下文从服务端恢复（刷新 / 换设备 / 隔几天都接着聊） ──── */
+function loadConversation(){
+  if(!CUR) return Promise.resolve();
+  if(CONV[CUR.id] === undefined){
+    // 这个人是第一次进入：接着最近一段对话
+    return api("api/persons/" + CUR.id + "/conversations").then(function(d){
+      var cs = d.conversations || [];
+      if(cs.length) return openConversation(cs[0].id);
+      CONV[CUR.id] = 0; HIST[CUR.id] = []; renderChat();
+    }).catch(function(){ CONV[CUR.id] = 0; HIST[CUR.id] = []; renderChat(); });
+  }
+  if(CONV[CUR.id]) return openConversation(CONV[CUR.id]);
+  HIST[CUR.id] = HIST[CUR.id] || [];
+  renderChat();
+  return Promise.resolve();
+}
+function openConversation(cid){
+  if(!CUR) return Promise.resolve();
+  var pid = CUR.id;
+  return api("api/conversations/" + cid + "/messages").then(function(d){
+    if(!CUR || CUR.id !== pid) return;      // 期间切了人，丢弃
+    CONV[pid] = cid;
+    HIST[pid] = (d.messages || []).map(function(m){
+      return {role:m.role, content:m.content, actions:m.actions || []};
+    });
+    renderChat();
+  }).catch(function(){ CONV[pid] = 0; HIST[pid] = []; renderChat(); });
+}
+function newConversation(){
+  if(!CUR || BUSY) return;
+  CONV[CUR.id] = 0;
+  HIST[CUR.id] = [];
+  renderChat();
+  toast("已开新对话，之前的都还在档案里");
+}
+function quick(t){ $("input").value = t; send(); }
+
+/* ── 发送 ───────────────────────────────────────────────── */
+function renderPending(){
+  var el = $("pending");
+  el.innerHTML = "";
+  el.style.display = PENDING.length ? "flex" : "none";
+  PENDING.forEach(function(f, i){
+    var d = document.createElement("div");
+    d.className = "p";
+    d.innerHTML = "<b>" + esc(f.name) + "</b><span>✕️</span>";
+    d.querySelector("span").onclick = function(){ PENDING.splice(i,1); renderPending(); };
+    el.appendChild(d);
+  });
+}
+$("btn-attach").onclick = function(){ $("file-input").click(); };
+$("file-input").onchange = function(){
+  var fs = this.files || [];
+  for(var i=0;i<fs.length;i++) PENDING.push(fs[i]);
+  renderPending();
+  this.value = "";
+  if(PENDING.length) toast("已选 " + PENDING.length + " 个文件，发送后自动解析");
+};
+$("input").addEventListener("input", function(){
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 150) + "px";
+});
+$("input").addEventListener("keydown", function(e){
+  if(e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); send(); }
+});
+$("send").onclick = send;
+
+function send(){
+  if(BUSY || !CUR) return;
+  var PID = CUR.id;                 // 流式期间用户可能切人，锁定本轮归属
+  var text = $("input").value.trim();
+  if(!text && !PENDING.length) return;
+
+  // 按下发送立刻清空输入框 / 待发文件（不等回答回来，否则用户以为没发出去）
+  $("input").value = "";
+  $("input").style.height = "auto";
+  var sentFiles = PENDING.slice();
+  PENDING = [];
+  renderPending();
+
+  BUSY = true;
+  $("send").disabled = true;
+  $("send").innerHTML = "<span class='spin'></span>";
+
+  var inner = $("chat-inner");
+  var ph = inner.querySelector(".empty");
+  if(ph) ph.remove();
+  if(text) inner.appendChild(msgNode("me", text));
+
+  var node = msgNode("ai", "");
+  node.classList.add("streaming");
+  inner.appendChild(node);
+
+  var body = null, noteBox = null, acc = "";
+  function setText(t){
+    if(!body){ body = document.createElement("span"); node.appendChild(body); }
+    body.textContent = t;
+    scrollBottom();
+  }
+  function addHint(txt){
+    if(!noteBox){
+      noteBox = document.createElement("div");
+      noteBox.className = "note";
+      node.appendChild(noteBox);
+    }
+    var line = document.createElement("div");
+    line.textContent = txt;
+    noteBox.appendChild(line);
+    scrollBottom();
+  }
+  setText(sentFiles.length ? "正在解析报告…" : "正在思考…");
+
+  var fd = new FormData();
+  fd.append("person_id", PID);
+  fd.append("message", text);
+  fd.append("stream", "1");
+  sentFiles.forEach(function(f){ fd.append("files", f, f.name); });
+  var hist = (HIST[PID] || []).slice(-10);
+  fd.append("history", JSON.stringify(hist));
+  // 带上当前会话 id，服务端据此接上下文；0 表示开新会话（服务端会建并回传 id）
+  fd.append("conversation_id", CONV[PID] || 0);
+
+  var done = false, actions = [], attach = [], watchdog = null;
+  function finish(){
+    if(done) return;
+    done = true;
+    if(watchdog) clearInterval(watchdog);
+    node.classList.remove("streaming");
+    setText(acc || "（没返回内容，再问一次试试）");
+    // 用真实结果替换掉过程中占位的"记进档案…"
+    if(noteBox && noteBox.parentNode) noteBox.parentNode.removeChild(noteBox);
+    noteBox = null;
+    var note = actionsNote(actions, attach);
+    if(note) node.appendChild(note);
+    scrollBottom();
+
+    HIST[PID] = hist.concat([
+      {role:"user", content: text || "（上传了体检报告）"},
+      {role:"assistant", content: acc, actions: actions}
+    ]);
+    // 解析失败的文件退回待发区，别让用户白传
+    var failed = attach.filter(function(a){ return !a.ok; });
+    if(failed.length){
+      PENDING = [];
+      attach.forEach(function(a, i){ if(!a.ok && sentFiles[i]) PENDING.push(sentFiles[i]); });
+      renderPending();
+      toast("有文件没解析成功，已放回待发送区", true);
+    } else if(attach.length){
+      toast("报告已解析入库");
+    }
+    BUSY = false;
+    $("send").disabled = false;
+    $("send").textContent = "发送";
+  }
+
+  // 看门狗：90 秒没有任何新数据就判超时收尾，避免界面永远卡在"记进档案…"
+  var lastBeat = Date.now();
+  watchdog = setInterval(function(){
+    if(done){ clearInterval(watchdog); return; }
+    if(Date.now() - lastBeat > 90000){
+      clearInterval(watchdog);
+      if(acc){ setText(acc + "\n\n⚠️ 响应超时（服务端可能还在写库），刷新看看档案里有没有记上"); }
+      else { setText("⚠️ 响应超时，请重试"); }
+      toast("响应超时", true);
+      finish();
+    }
+  }, 5000);
+
+  fetch("api/chat", {method:"POST", body: fd})
+    .then(function(r){
+      if(!r.ok || !r.body) throw new Error("HTTP " + r.status);
+      var reader = r.body.getReader(), dec = new TextDecoder(), buf = "";
+      function pump(){
+        return reader.read().then(function(res){
+          if(res.done){ finish(); return; }
+          lastBeat = Date.now();
+          buf += dec.decode(res.value, {stream:true});
+          var parts = buf.split("\n\n");
+          buf = parts.pop();
+          for(var i=0;i<parts.length;i++){
+            var line = parts[i].trim();
+            if(!line || line.indexOf("data:") !== 0) continue;
+            var payload = line.slice(5).trim();
+            if(payload === "[DONE]") continue;
+            var ev;
+            try{ ev = JSON.parse(payload); }catch(e){ continue; }
+            if(ev.type === "delta"){
+              acc += ev.text || "";
+              setText(acc);
+            } else if(ev.type === "tool"){
+              // 服务端忙时先占位，done 事件到达时会换成实际结果
+              addHint("✍️ 记进档案…");
+            } else if(ev.type === "attach"){
+              attach = ev.attachments || [];
+            } else if(ev.type === "done"){
+              actions = ev.actions || [];
+              if(ev.conversation_id) CONV[PID] = ev.conversation_id;
+              if(ev.reply) acc = ev.reply;
+            } else if(ev.type === "ping"){
+              /* 心跳，仅用于重置看门狗 */
+            } else if(ev.type === "error"){
+              throw new Error(ev.error || "服务出错");
+            }
+          }
+          return pump();
+        });
+      }
+      return pump();
+    })
+    .catch(function(e){
+      node.classList.remove("streaming");
+      if(acc){ setText(acc + "\n\n❌ " + e.message); }
+      else { setText("❌ " + e.message); }
+      toast(e.message, true);
+      finish();
+    });
+}
+
+/* ══ 档案页 ══ */
+function fieldHtml(f, val){
+  var id = "f-" + f.key;
+  var common = 'id="' + id + '" data-key="' + f.key + '"';
+  if(f.type === "area")
+    return '<div class="f wide"><label>' + esc(f.label) + '</label><textarea ' + common +
+           ' placeholder="' + esc(f.hint) + '">' + esc(val) + '</textarea></div>';
+  var t = f.type === "date" ? "date" : (f.type === "num" ? "number" : "text");
+  var step = f.type === "num" ? ' step="0.1"' : '';
+  return '<div class="f"><label>' + esc(f.label) + '</label><input type="' + t + '" ' + common + step +
+         ' placeholder="' + esc(f.hint) + '" value="' + esc(val) + '"></div>';
+}
+function groupHtml(g, prof){
+  var body = g.fields.map(function(f){
+    var v = prof[f.key];
+    if(Object.prototype.toString.call(v) === "[object Array]") v = v.join("、");
+    return fieldHtml(f, v == null ? "" : v);
+  }).join("");
+  return '<div class="card"><h2>' + esc(g.label) + '</h2><div class="grid">' + body +
+         '</div></div>';
+}
+function loadFile(){
+  if(!CUR){ $("file-body").innerHTML = ""; return; }
+  $("file-body").innerHTML = '<div class="card"><div class="desc">加载中…</div></div>';
+  Promise.all([
+    api("api/persons/" + CUR.id),
+    api("api/persons/" + CUR.id + "/memories")
+  ]).then(function(res){
+    var d = res[0], mem = (res[1].memories) || [];
+    renderFile(d, mem);
+  }).catch(function(e){
+    $("file-body").innerHTML = '<div class="card"><div class="desc">加载失败：' + esc(e.message) + '</div></div>';
+  });
+}
+function renderFile(d, mem){
+  var p = d.person, prof = d.profile || {};
+  var groups = (META && META.profile_groups) || [];
+  var h = "";
+
+  // 概览
+  var inds = d.indicators || [], rep = d.reports || [], recs = d.records || [];
+  var plans = d.plans || [];
+  var solo = d.standalone_indicators || [];
+  var abn = inds.filter(function(i){ return i.status === "high" || i.status === "low"; });
+  h += '<div class="card"><h2>👤️ ' + esc(p.name) + '<span class="cnt">' +
+       (p.role === "self" ? "本人" : "家人") + '</span></h2>' +
+       '<div class="desc">体检报告 ' + rep.length + ' 份 · 指标 ' + inds.length +
+       ' 项（异常 ' + abn.length + '）· 自测 ' + solo.length + ' 条 · 日常记录 ' + recs.length +
+       ' 条 · 计划 ' + plans.length + ' 份</div>' +
+       '<div class="btnrow"><button class="ghost danger" id="btn-del-person">删除此人</button></div></div>';
+
+  // 饮食 / 运动计划
+  h += '<div class="card"><h2>📋️ 计划<span class="cnt">' + plans.length + ' 份 · AI 规划后存下来的</span></h2>';
+  if(!plans.length){
+    h += '<div class="desc">还没有。在「问健康」里说一句「帮我排一下这周吃什么」或「定个运动计划」，' +
+         'AI 会基于档案出方案并存到这里，之后能接着改、能跟踪进度。</div>';
+  } else {
+    var KM = {diet:"🍚 饮食", exercise:"🏃 运动", mixed:"🔀 综合", other:"📌 其他"};
+    var SM = {active:"进行中", paused:"已暂停", done:"已完成", archived:"已归档"};
+    plans.forEach(function(pl){
+      var cls = pl.status === "active" ? "ok" : "mut";
+      h += '<div class="item"><div><span class="pill ' + cls + '">' + esc(SM[pl.status] || pl.status) +
+        '</span> <b>' + esc(KM[pl.kind] || pl.kind) + (pl.title ? ' · ' + esc(pl.title) : '') + '</b>' +
+        (pl.period ? '<span class="meta">周期：' + esc(pl.period) + '</span>' : '') +
+        '<div class="planbody">' + esc(pl.content).replace(/\n/g, "<br>") + '</div>' +
+        '<span class="meta">更新 ' + esc((pl.updated_at || "").slice(0, 10)) + '</span></div>' +
+        '<span class="x" data-del-plan="' + pl.id + '" title="删除">✕️</span></div>';
+    });
+  }
+  h += '</div>';
+
+  // 资料表单
+  groups.forEach(function(g){ h += groupHtml(g, prof); });
+  h += '<div class="card"><div class="btnrow"><button class="primary" id="btn-save">保存资料</button>' +
+       '<span class="saved" id="save-msg"></span></div>' +
+       '<div class="desc" style="margin:8px 0 0">多个值用「、」或逗号分隔。改完点保存，AI 下次回答就用新资料。</div></div>';
+
+  // 体检报告
+  h += '<div class="card"><h2>📄️ 体检报告<span class="cnt">' + rep.length + ' 份</span></h2>';
+  if(!rep.length){
+    h += '<div class="desc">还没有。去「问健康」页把报告 PDF 或照片发给 AI，它会自动解析入库。</div>';
+  } else {
+    rep.forEach(function(r){
+      h += '<div class="item"><div><b>' + esc(r.report_date) + '</b> ' +
+           (r.institution ? esc(r.institution) + ' ' : '') +
+           '<span class="meta">' + esc(r.category || "体检") + ' · ' + r.indicator_count + ' 项' +
+           (r.abnormal_count ? ' · <span style="color:var(--warn)">异常 ' + r.abnormal_count + '</span>' : '') +
+           (r.summary ? ' · ' + esc(r.summary) : '') + '</span>' +
+           (r.name_match === false
+             ? '<span class="meta" style="color:var(--warn)">⚠️ 报告上姓名是「' +
+               esc(r.person_name_on_report || "未写") + '」，与本人不符，确认是否传错人</span>'
+             : '') +
+           ((r.files || []).map(function(f){
+              return '<a href="api/files/' + f.id + '/raw" target="_blank" style="font-size:12px">查看原件</a>';
+            }).join(" ")) +
+           '</div><span class="x" data-del-report="' + r.id + '" title="删除">✕️</span></div>';
+    });
+  }
+  h += '</div>';
+
+  // 指标
+  if(abn.length){
+    h += '<div class="card"><h2>⚠️ 异常指标<span class="cnt">' + abn.length + ' 项</span></h2>' +
+         '<table class="ind"><tr><th>项目</th><th>结果</th><th>参考</th><th>日期</th></tr>' +
+         abn.slice(0, 40).map(function(i){
+           return '<tr><td>' + esc(i.name) + '</td><td><b>' + esc(i.value) + '</b> ' + esc(i.unit || "") +
+             '</td><td>' + esc((i.ref_min || "—") + "~" + (i.ref_max || "—")) +
+             '</td><td>' + esc(i.measured_at) + '</td></tr>';
+         }).join("") + '</table></div>';
+  }
+
+  // 自测指标（聊天里口头报的数值，不属于任何体检报告）
+  if(solo.length){
+    h += '<div class="card"><h2>📏️ 自测指标<span class="cnt">' + solo.length +
+         ' 条 · 聊天里报的</span></h2>' +
+         '<table class="ind"><tr><th>项目</th><th>结果</th><th>参考</th><th>日期</th></tr>' +
+         solo.slice(0, 40).map(function(i){
+           return '<tr><td>' + esc(i.name) + '</td><td><b>' + esc(i.value) + '</b> ' + esc(i.unit || "") +
+             '</td><td>' + esc((i.ref_min || "—") + "~" + (i.ref_max || "—")) +
+             '</td><td>' + esc(i.measured_at) + '</td></tr>';
+         }).join("") + '</table>' +
+         '<div class="desc" style="margin:8px 0 0">在「问健康」里说一句「我血压 145」就会记到这里，' +
+         '不会混进上面的体检报告。</div></div>';
+  }
+
+  // 日常记录
+  h += '<div class="card"><h2>📝️ 日常记录<span class="cnt">最近 ' + Math.min(recs.length, 30) + ' 条</span></h2>';
+  if(!recs.length){
+    h += '<div class="desc">还没有记录。在「问健康」里说一句「今天中午吃了什么、跑了多久」，AI 会自动记下来。</div>';
+  } else {
+    var CM = (META && META.record_categories) || {};
+    h += recs.slice(0, 30).map(function(r){
+      return '<div class="item"><div><span class="pill mut">' + esc(CM[r.category] || r.category) +
+        '</span> ' + esc(r.content) + '<span class="meta">' + esc(r.record_date) + '</span></div>' +
+        '<span class="x" data-del-rec="' + r.id + '">✕️</span></div>';
+    }).join("");
+  }
+  h += '</div>';
+
+  // 长期记忆
+  h += '<div class="card"><h2>🧠️ 长期记忆<span class="cnt">' + mem.length + ' 条 · AI 自己攒的</span></h2>';
+  if(!mem.length){
+    h += '<div class="desc">AI 会在聊天中自动记住重要的事（病史、用药、习惯、目标），这里能看到它记住了什么。</div>';
+  } else {
+    h += mem.slice(0, 40).map(function(m){
+      var cls = m.importance === "high" ? "high" : (m.importance === "low" ? "low" : "mut");
+      return '<div class="item"><div><span class="pill ' + cls + '">' + esc(m.kind) + '</span> ' +
+        (m.topic ? '<b>' + esc(m.topic) + '</b> ' : '') + esc(m.content) +
+        '<span class="meta">' + esc((m.updated_at || "").slice(0, 10)) + '</span></div>' +
+        '<span class="x" data-del-mem="' + m.id + '">✕️</span></div>';
+    }).join("");
+  }
+  h += '</div>';
+
+  $("file-body").innerHTML = h;
+
+  $("btn-save").onclick = function(){
+    var body = {person_id: CUR.id};
+    document.querySelectorAll("#file-body [data-key]").forEach(function(el){
+      body[el.dataset.key] = el.value;
+    });
+    api("api/profile", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify(body)})
+      .then(function(){
+        $("save-msg").textContent = "✅ 已保存";
+        toast("资料已保存");
+        if(body.name) loadPersons();
+      })
+      .catch(function(e){ $("save-msg").textContent = "❌ " + e.message; toast(e.message, true); });
+  };
+  $("btn-del-person").onclick = function(){
+    if(p.role === "self"){ toast("不能删除本人档案", true); return; }
+    if(!confirm("确定删除「" + p.name + "」及其全部报告、指标、记录？\n（原件会移到 trash 目录，不会真删）")) return;
+    api("api/persons/delete", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({person_id: p.id})})
+      .then(function(){ toast("已删除"); return loadPersons(); })
+      .then(function(){ renderChat(); loadFile(); })
+      .catch(function(e){ toast(e.message, true); });
+  };
+  document.querySelectorAll("[data-del-report]").forEach(function(el){
+    el.onclick = function(){
+      if(!confirm("删除这份报告及其指标？")) return;
+      api("api/reports/delete", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({report_id: +el.dataset.delReport, person_id: CUR.id})})
+        .then(function(){ toast("已删除"); loadFile(); })
+        .catch(function(e){ toast(e.message, true); });
+    };
+  });
+  document.querySelectorAll("[data-del-rec]").forEach(function(el){
+    el.onclick = function(){
+      api("api/records/delete", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({id: +el.dataset.delRec, person_id: CUR.id})})
+        .then(function(){ loadFile(); }).catch(function(e){ toast(e.message, true); });
+    };
+  });
+  document.querySelectorAll("[data-del-mem]").forEach(function(el){
+    el.onclick = function(){
+      api("api/memories/delete", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({id: +el.dataset.delMem})})
+        .then(function(){ loadFile(); }).catch(function(e){ toast(e.message, true); });
+    };
+  });
+  document.querySelectorAll("[data-del-plan]").forEach(function(el){
+    el.onclick = function(){
+      if(!confirm("删除这份计划？")) return;
+      api("api/plans/delete", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({id: +el.dataset.delPlan, person_id: CUR.id})})
+        .then(function(){ toast("已删除"); loadFile(); })
+        .catch(function(e){ toast(e.message, true); });
+    };
+  });
+}
+
+/* ── 启动 ───────────────────────────────────────────────── */
+api("api/meta").then(function(m){
+  META = m;
+  if(!m.tools || !m.tools.api_key) toast("模型密钥未配置，解析和问答会失败", true);
+  $("model-note").textContent = "· " + (m.chat_model || "");
+}).catch(function(){});
+$("btn-new-conv").onclick = newConversation;
+
+loadPersons().then(function(){
+  return loadConversation();
+}).then(function(){
+  setTimeout(function(){ if(window.innerWidth > 560) $("input").focus(); }, 120);
+}).catch(function(e){ toast("加载失败：" + e.message, true); });
+</script>
+</body>
+</html>

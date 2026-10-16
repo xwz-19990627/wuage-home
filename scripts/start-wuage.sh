@@ -6,7 +6,7 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO"
 HOST="${WUAGE_WEB_HOST:-127.0.0.1}"
 PORT="${WUAGE_WEB_PORT:-17623}"
-DATA_DIR="${WUAGE_DATA:-$REPO/data}"
+DATA_DIR="${WUAGE_DATA:-/root/wuage/data}"
 PY=""
 for c in python3.11 python3; do
   if command -v "$c" >/dev/null 2>&1; then PY="$c"; break; fi

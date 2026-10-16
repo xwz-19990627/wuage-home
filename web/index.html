@@ -137,7 +137,7 @@
   <h1>🐸蛙哥家庭助手<span class="ver" id="ver">v0.2.0-rc.2</span>
     <button class="ghost" id="btn-home" style="display:none;float:right;padding:3px 10px;font-size:12px">← 主页</button>
   </h1>
-  <div id="user-bar" style="margin:2px 0 0;font-size:12px;color:var(--sub)">👤 当前设备：<b id="user-name">本人</b> <button class="ghost" id="btn-switch-user" style="padding:2px 8px;font-size:11px;margin-left:4px">切换</button></div>
+  <div id="user-bar" style="margin:2px 0 0;font-size:12px;color:var(--sub)">👤 当前设备：<b id="user-name">残雪</b> <button class="ghost" id="btn-switch-user" style="padding:2px 8px;font-size:11px;margin-left:4px">切换</button></div>
 
   <!-- 首页：纯入口（launcher） -->
   <div id="view-home" class="view on">
@@ -150,8 +150,9 @@
       <div class="hub-grid">
         <div class="hub-card" data-goto="ai"><div class="hc-ico">📒</div><div class="hc-name">记账</div><div class="hc-sub">AI / 账单 / 财务 / 分类</div></div>
         <div class="hub-card" id="hub-qa"><div class="hc-ico">💬</div><div class="hc-name">问问家里</div><div class="hc-sub">问答 · 规划中</div></div>
-        <div class="hub-card" id="hub-tool"><div class="hc-ico">🧰</div><div class="hc-name">工具箱</div><div class="hc-sub">工具入口 · 文件/理财</div></div>
+        <div class="hub-card" id="hub-tool"><div class="hc-ico">🧰</div><div class="hc-name">工具箱</div><div class="hc-sub">工具入口 · 文件/理财/健康</div></div>
         <div class="hub-card" id="hub-finance"><div class="hc-ico">📈</div><div class="hc-name">理财助手</div><div class="hc-sub">持仓/复盘/回测 · MVP</div></div>
+        <div class="hub-card" id="hub-health"><div class="hc-ico">🏥</div><div class="hc-name">健康助手</div><div class="hc-sub">档案/体检/饮食运动规划</div></div>
       </div>
     </div>
   </div>
@@ -330,22 +331,27 @@
       <h2>💰 家庭总账 · 净资产</h2>
       <div class="big" id="nw-total">--<small>元</small></div>
       <div class="meta-row" id="nw-meta"></div>
+      <div id="nw-advice" style="margin-top:8px"></div>
       <div id="nw-trend" style="margin-top:6px"></div>
     </div>
     <div class="card">
-      <h2>📅 月度结算 <span class="ver">工资 18,000 + 公积金 3,000</span></h2>
-      <div class="row" style="margin-bottom:6px">
-        <select id="ms-year" style="padding:5px"></select>
-        <select id="ms-month" style="padding:5px"></select>
-        <button class="primary" id="btn-ms" style="flex:1">记入本月收入</button>
-        <button class="ghost" id="btn-ms-refresh" style="flex:1;display:none">本月已记 ✓</button>
+      <h2>📆 本月结余 <span class="ver">收入 − 支出 · 自动计入活钱</span></h2>
+      <div class="row" style="gap:10px;align-items:baseline">
+        <div style="flex:1"><div class="hint">收入</div><div class="big" id="nw-month-income" style="font-size:22px">--<small>元</small></div></div>
+        <div style="flex:1"><div class="hint">支出</div><div class="big" id="nw-month-expense" style="font-size:22px">--<small>元</small></div></div>
+        <div style="flex:1"><div class="hint">结余</div><div class="big" id="nw-month-balance" style="font-size:22px">--<small>元</small></div></div>
       </div>
-      <div class="hint" id="ms-hint"></div>
+      <div class="hint" id="nw-month-note" style="margin-top:4px"></div>
+    </div>
+    <div class="card" id="ai-gate">
+      <h2>🤖 AI 一句话记账 <span class="ver">自然语言 → 自动入账并扣减活钱</span></h2>
+      <p class="hint" style="margin:0 0 8px">点「去 AI 记账」，用一句话描述消费（如：今天买菜花了86、打车23、妈妈给红包200），确认保存即从「活钱」里自动加/扣。</p>
+      <button class="primary" id="btn-goto-ai" style="width:100%">✍️ 去 AI 记账</button>
     </div>
     <div class="card">
-      <h2>🏦 资产账户 <span class="ver">按存款来源 · 月未更新一次</span></h2>
+      <h2>🏦 资产 <span class="ver">活钱 / 基金 / 存款 / 黄金</span></h2>
       <div id="nw-accounts"></div>
-      <div class="hint" style="margin-top:6px">每账户点「更新」录入当月余额（黄金按当前市价换算总价，如 120g × 800 元 = 96,000）。</div>
+      <div class="hint" id="nw-buckets-hint" style="margin-top:6px"></div>
     </div>
     <div id="nw-edit" class="card" style="display:none">
       <h2>更新账户余额</h2>
@@ -685,7 +691,7 @@
         if(!res.ok){showToast("解析失败："+(res.d.error||""),"err");return;}
         CURRENT=res.d.parsed;
         var _u=getDevUser();
-        if((!CURRENT.member||CURRENT.member==="本人")&&_u&&_u!=="本人")CURRENT.member=_u;
+        if((!CURRENT.member||CURRENT.member==="残雪")&&_u&&_u!=="残雪")CURRENT.member=_u;
         showCard(CURRENT);saveDraft(CURRENT);$("f-text").value="";$("parse-hint").textContent="";
       }).catch(function(e){showToast("解析失败："+e,"err");});
   }
@@ -693,11 +699,11 @@
     $("ai-conf").textContent="置信度 "+Math.round((p.ai_confidence||0.8)*100)+"%";
     var kt=p.kind==="income"?"收入":(p.kind==="transfer"?"转账":"支出");
     var kp=p.kind==="income"?"background:#DFF2E8;color:#1E7A4F":(p.kind==="transfer"?"background:#E4EDF7;color:#2C5F8A":"background:#FBE3E0;color:#C0392B");
-    $("ai-view").innerHTML="<span class='pill' style='"+kp+"'>"+kt+"</span> 金额 <b>"+yuan(p.amount_cents)+"</b> 元 · "+esc(p.date)+" · <span class='pill' style='"+pillStyle(p.category)+"'>"+esc(p.category)+"</span> · "+esc(p.member||"本人")+(p.merchant?" · 🏪 "+esc(p.merchant):"")+" · "+esc(p.note);
+    $("ai-view").innerHTML="<span class='pill' style='"+kp+"'>"+kt+"</span> 金额 <b>"+yuan(p.amount_cents)+"</b> 元 · "+esc(p.date)+" · <span class='pill' style='"+pillStyle(p.category)+"'>"+esc(p.category)+"</span> · "+esc(p.member||"残雪")+(p.merchant?" · 🏪 "+esc(p.merchant):"")+" · "+esc(p.note);
     $("ai-card").style.display="";$("ai-fields").style.display="";$("ai-edit").style.display="none";$("parse-hint").textContent="";
     fillSelect($("e-category"),CATS,p.category);
-    var memOpts=[p.member||"本人"].concat(MEMS.filter(function(m){return m!==(p.member||"本人");}));
-    fillSelect($("e-member"),memOpts,p.member||"本人");
+    var memOpts=[p.member||"残雪"].concat(MEMS.filter(function(m){return m!==(p.member||"残雪");}));
+    fillSelect($("e-member"),memOpts,p.member||"残雪");
     $("e-amount").value=(p.amount_cents/100).toFixed(2);$("e-date").value=p.date;$("e-merchant").value=p.merchant||"";$("e-note").value=p.note||"";
   }
   function hideCard(){$("ai-card").style.display="none";CURRENT=null;}
@@ -766,7 +772,7 @@
         var tr=document.createElement("tr");tr.dataset.id=r.id;
         tr.innerHTML="<td>"+esc(r.date)+"</td><td><span class='pill' style='"+pillStyle(r.category)+"'>"+esc(r.category)+"</span></td>"+
           "<td class='num "+(r.kind==="income"?"amt-in":"amt-out")+"'>"+(r.kind==="income"?"+":"-")+yuan(r.amount_cents)+"</td>"+
-          "<td>"+esc(r.note)+"<br><span style=color:#9A937F;font-size:11px>"+esc(r.member||"本人")+(r.merchant?" · "+esc(r.merchant):"")+"</span></td>"+
+          "<td>"+esc(r.note)+"<br><span style=color:#9A937F;font-size:11px>"+esc(r.member||"残雪")+(r.merchant?" · "+esc(r.merchant):"")+"</span></td>"+
           "<td><button class='ghost' data-a=edit>改</button> <button class='danger' data-a=del>删</button></td>";
         tb.appendChild(tr);
       });
@@ -839,26 +845,16 @@
   }
   function renderNetworth(d){
     $("nw-total").innerHTML=fmtMoney(d.total_cents)+"<small>元</small>";
-    $("nw-meta").textContent="净资产 = 四类资产合计 · 快照截至 "+d.updated_at;
-    var el=$("nw-accounts");el.innerHTML="";
-    (d.accounts||[]).forEach(function(a){
-      var row=document.createElement("div");
-      row.style.cssText="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)";
-      row.innerHTML=
-        "<div style='flex:1;min-width:0'>"+
-          "<div style='font-size:15px;font-weight:600'>"+esc(a.name)+"<span style='font-size:11px;color:var(--sub);font-weight:400'> · "+esc(a.type_name)+"</span></div>"+
-          "<div style='font-size:11px;color:var(--sub)'>"+((a.note?esc(a.note)+" · ":"")+(a.balance_date?("快照 "+String(a.balance_date).slice(5)):"尚未录入余额"))+"</div>"+
-        "</div>"+
-        "<div style='text-align:right'><b style='font-size:16px'>"+fmtMoney(a.latest_balance)+"</b><span style='color:var(--sub);font-size:11px'> 元</span></div>"+
-        "<button class='ghost' style='padding:5px 10px;font-size:12px'>更新</button>";
-      row.querySelector("button").onclick=function(){openBalanceEdit(a);};
-      el.appendChild(row);
-    });
+    $("nw-meta").textContent="净资产 = 活钱 + 基金 + 存款 + 黄金 · 快照截至 "+d.updated_at;
     var tr=$("nw-trend");
     var arr=(d.trend||[]).slice(-6);
     tr.innerHTML=arr.length?("<div class='hint'>净值趋势（近 "+arr.length+" 期）</div>"):"";
     if(!arr.length){
-      tr.innerHTML="<div class='hint'>还没有余额快照 —— 点击下方账户「更新」录入各账户余额后，这里会出现净值走势。</div>";
+      tr.innerHTML="<div class='hint'>还没有余额快照，录入一次账户余额后即可查看净值走势。</div>";
+      return;
+    }
+    if(arr.length<2){
+      tr.innerHTML="<div class='hint'>净值快照（"+arr[0].month+"）："+fmtMoney(arr[0].total_cents)+" 元，暂无历史可对比。</div>";
       return;
     }
     var mx=Math.max.apply(null,arr.map(function(x){return x.total_cents;}));
@@ -886,46 +882,61 @@
         if(x.error){showToast(x.error,"err");return;}
         $("nw-edit").style.display="none";
         showToast("余额已更新","ok");
-        checkMonthlySettle();loadNetworth();
+        loadNetworth();loadCashflow();
       }).catch(function(){showToast("保存失败","err");});
   }
-  function checkMonthlySettle(){
-    var ny=$("ms-year"),nm=$("ms-month");
-    if(!ny||!ny.value)return;
-    var ym=ny.value+"-"+("0"+nm.value).slice(-2);
-    fetch("api/entries?kind=income&from="+ym+"-01&to="+ym+"-31&limit=200").then(function(r){return r.json();}).then(function(d){
-      var done=(d.entries||[]).some(function(e){return (e.remark||"").indexOf("月度结算")>=0;});
-      $("btn-ms").style.display=done?"none":"";
-      $("btn-ms-refresh").style.display=done?"":"none";
-      $("ms-hint").textContent=done?"本月已记：工资 18,000 + 公积金 3,000 ✓（幂等，不会重复）"
-        :"点击自动记入本月 工资 18,000 元 + 公积金 3,000 元（只记一次）";
-    }).catch(function(){});
+  function loadCashflow(){
+    fetch("api/cashflow").then(function(r){return r.json();}).then(renderCashflow).catch(function(){});
   }
-  function doMonthlySettle(){
-    fetch("api/monthly-settle",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({year:parseInt($("ms-year").value,10),month:parseInt($("ms-month").value,10)})})
-      .then(function(r){return r.json();}).then(function(x){
-        if(x.error){showToast(x.error,"err");return;}
-        showToast(x.already?"该月已结算过":"已记入工资 + 公积金","ok");
-        checkMonthlySettle();loadNetworth();loadNature();
-      }).catch(function(){showToast("结算失败","err");});
-  }
-  function initMonthlySettleUI(){
-    var ny=$("ms-year"),nm=$("ms-month"),now=new Date();
-    if(ny.options.length)return;
-    [now.getFullYear(),now.getFullYear()-1].forEach(function(yy){
-      var o=document.createElement("option");o.value=String(yy);o.textContent=yy+"年";
-      if(yy===now.getFullYear())o.selected=true;ny.appendChild(o);
+  function renderCashflow(cf){
+    var el=$("nw-accounts");if(!el)return;
+    el.innerHTML="";
+    (cf.buckets||[]).forEach(function(b){
+      var row=document.createElement("div");
+      row.style.cssText="display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)";
+      var note="";
+      if(b.key==="cash")note="基准 "+fmtMoney(b.total_cents)+" 元 · 9月起净 "+fmtMoney(cf.net_since)+" 元";
+      row.innerHTML=
+        "<div style='flex:1;min-width:0'>"+
+          "<div style='font-size:15px;font-weight:600'>"+esc(b.name)+"<span style='font-size:11px;color:var(--sub);font-weight:400'> · "+esc(b.type_name)+"</span></div>"+
+          "<div style='font-size:11px;color:var(--sub)'>"+esc(b.desc||"")+(note?" · "+note:"")+"</div>"+
+        "</div>"+
+        "<div style='text-align:right'><b style='font-size:16px'>"+fmtMoney(b.live_cents)+"</b><span style='color:var(--sub);font-size:11px'> 元</span></div>";
+      el.appendChild(row);
     });
-    for(var i=1;i<=12;i++){
-      var o=document.createElement("option");o.value=String(i);o.textContent=i+"月";
-      if(i===now.getMonth()+1)o.selected=true;nm.appendChild(o);
+    var hint=$("nw-buckets-hint");
+    if(hint)hint.textContent="自 "+cf.start_at+" 起：记一笔支出，活钱自动减；记一笔收入，活钱自动加。历史数据未改动。";
+
+    var adv=$("nw-advice");
+    if(adv){
+      var total=cf.total_cents||1;
+      function pr(c){return Math.round(c*100/total);}
+      var li=pr(cf.live_cash), fi=0, di=0, au=0;
+      (cf.buckets||[]).forEach(function(b){
+        if(b.key==="invest")fi=pr(b.live_cents);else if(b.key==="savings")di=pr(b.live_cents);else if(b.key==="asset")au=pr(b.live_cents);
+      });
+      var s;
+      if(li<15)s="活钱占比偏低（"+li+"%），建议至少留足 3~6 个月开销再谈加仓";
+      else if(li<30)s="活钱占比适中（"+li+"%），可把部分结余转入基金/长期定投";
+      else s="活钱充足（"+li+"%），流动性好，可适度提高基金/长期投资比例";
+      s+="；基金 "+fi+"% / 存款 "+di+"% / 黄金 "+au+"%。黄金为压舱石，注意不要过度集中；存款/稳健理财可当现金替代。";
+      adv.textContent=s;
     }
-    $("btn-ms").onclick=doMonthlySettle;
+    var mi=$("nw-month-income"),me=$("nw-month-expense"),mb=$("nw-month-balance"),mn=$("nw-month-note");
+    if(mi)mi.innerHTML=fmtMoney(cf.month_income)+"<small>元</small>";
+    if(me)me.innerHTML=fmtMoney(cf.month_expense)+"<small>元</small>";
+    if(mb){
+      var bal=cf.month_balance||0;
+      mb.innerHTML=(bal<0?"-":"")+fmtMoney(Math.abs(bal))+"<small>元</small>";
+      mb.style.color=bal<0?"#C0392B":(bal>0?"#1E7A4F":"var(--text)");
+    }
+    if(mn)mn.textContent=(cf.month||"")+" 收支自动计入活钱：记一笔支出，活钱与结余同步减少；记一笔收入，活钱与结余同步增加。";
+  }
+  function initFinanceUI(){
+    var g=$("btn-goto-ai");
+    if(g&&!g.dataset.wired){g.dataset.wired="1";g.onclick=function(){showView("ai");};}
     $("nw-edit-save").onclick=saveBalance;
     $("nw-edit-cancel").onclick=function(){$("nw-edit").style.display="none";};
-    ny.addEventListener("change",checkMonthlySettle);
-    nm.addEventListener("change",checkMonthlySettle);
   }
   var NATURE_BOUND=false;
   function hoffYM(){
@@ -1097,9 +1108,9 @@
     loadFunds();
   }
   function loadFinance(){
-    initMonthlySettleUI();
+    initFinanceUI();
     loadNetworth();
-    checkMonthlySettle();
+    loadCashflow();
   }
   function showCatForm(opts){
     var f=$("n-cat-form");
@@ -1211,6 +1222,8 @@
   $("hub-tool").onclick=function(){location.href="/home/toolbox/";};
   // 理财助手：直达工具 02（家庭入口 /home/finance/）
   $("hub-finance").onclick=function(){location.href="/home/finance/";};
+  // 健康助手：直达工具 03（家庭入口 /home/health/）
+  $("hub-health").onclick=function(){location.href="/home/health/";};
   $("btn-switch-user").onclick=showUserPick;
   $("btn-parse").onclick=smartAdd;
   $("btn-confirm").onclick=confirmSave;

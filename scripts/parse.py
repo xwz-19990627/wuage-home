@@ -4,7 +4,7 @@
 CLI:  python3.11 scripts/parse.py "今天买菜花了86元"
 Web:  from parse import parse_text
 候选：categories / members 由调用方（web.py 从 DB 读）传入，模型只能从中选。
-凭据链：OPENCODE_GO_API_KEY（环境变量 → $DSH_HOME/.credentials.yaml）
+凭据链：OPENCODE_GO_API_KEY（环境变量 → $WUAGE_HOME/.credentials.yaml → $DSH_HOME/.credentials.yaml）
 """
 
 import datetime
@@ -49,18 +49,31 @@ def build_system_prompt(categories=None, members=None):
 
 
 def api_key():
+    """凭据解析顺序（前者优先）：
+
+    1. 环境变量 OPENCODE_GO_API_KEY（systemd 注入，推荐）
+    2. wuage 自己的 $WUAGE_HOME/.credentials.yaml —— 让解析链**不依赖 DSH 存活**
+    3. DSH 的 $DSH_HOME/.credentials.yaml（历史来源，保留兼容）
+    """
     k = os.environ.get("OPENCODE_GO_API_KEY")
-    if k:
-        return k
-    home = os.environ.get("DSH_HOME") or os.path.expanduser("~/.dsh")
-    try:
-        with open(os.path.join(home, ".credentials.yaml")) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("OPENCODE_GO_API_KEY:"):
-                    return line.split(":", 1)[1].strip().strip(chr(34)).strip(chr(39))
-    except OSError:
-        pass
+    if k and k.strip():
+        return k.strip()
+    wuage_home = (os.environ.get("WUAGE_HOME") or "").strip()
+    if not wuage_home:
+        d = (os.environ.get("WUAGE_DATA") or "").strip()
+        wuage_home = os.path.dirname(d.rstrip("/")) if d else "/root/wuage"
+    candidates = [os.path.join(wuage_home, ".credentials.yaml"),
+                  os.path.join(os.environ.get("DSH_HOME") or os.path.expanduser("~/.dsh"),
+                               ".credentials.yaml")]
+    for path in candidates:
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("OPENCODE_GO_API_KEY:"):
+                        return line.split(":", 1)[1].strip().strip(chr(34)).strip(chr(39))
+        except OSError:
+            continue
     return None
 
 
@@ -92,9 +105,9 @@ def _normalize(obj, text, categories, members):
     category = obj.get("category")
     if category not in (categories or FALLBACK_CATEGORIES):
         category = "其他"
-    member = obj.get("member") or "本人"
+    member = obj.get("member") or "残雪"
     if members and member not in members:
-        member = "本人"
+        member = "残雪"
     try:
         confidence = float(obj.get("ai_confidence") or 0.8)
         if not (0 <= confidence <= 1):
@@ -122,7 +135,8 @@ def _normalize(obj, text, categories, members):
 def parse_text(text, categories=None, members=None, model=None):
     key = api_key()
     if not key:
-        raise RuntimeError("OPENCODE_GO_API_KEY 未配置（环境变量或 $DSH_HOME/.credentials.yaml）")
+        raise RuntimeError("OPENCODE_GO_API_KEY 未配置（环境变量 / $WUAGE_HOME/.credentials.yaml / "
+                           "$DSH_HOME/.credentials.yaml 三处都没有）")
     payload = {
         "model": model or MODEL,
         "messages": [
@@ -141,6 +155,8 @@ def parse_text(text, categories=None, members=None, model=None):
                     "Content-Type": "application/json",
                     "Authorization": "Bearer " + key,
                     "User-Agent": USER_AGENT,
+                    # OpenCode Go 网关要求带会话标识，否则 400 MissingSessionID
+                    "x-opencode-session": "wuage-ledger",
                 },
             )
             with urllib.request.urlopen(req, timeout=60) as resp:

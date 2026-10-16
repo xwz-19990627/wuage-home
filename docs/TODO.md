@@ -4,6 +4,45 @@
 > 并在 $DSH_HOME/AGENTS.md 的 wuage 小节同步一句话摘要（新会话自动加载）。
 > 新会话开场说"先看项目待办"或直接读本文件即可无缝续接。
 
+## 当前状态（2026-10-16 · 工程债清理）
+- ✅ **文件盒子数据归位**：`filebox.py` 默认目录原为仓库内 `REPO_ROOT/data/files`，服务器上实际写在
+  `/root/project/data/files`（脱离数据根 → 备份/迁移漏数据）。已改为与 ledger/finance/health 同一套
+  三级解析（`WUAGE_DATA` → `WUAGE_HOME/data` → `/root/wuage/data`），默认 `$WUAGE_DATA/files`；
+  start/stop 脚本的 pid/日志、`scripts/systemd/dsh-filebox.service` 同步改到数据根。
+  服务器已迁移（sha256 一致）+ 上传/下载/删除端到端验证；`/root/project/data`、`/root/project/backups`
+  已从仓库清除，旧日志归档 `$WUAGE_DATA/logs/legacy/`。
+- ✅ **每日备份从"只备 ledger.db"扩到整个数据根**：`scripts/backup.sh` 重写——sqlite 走 backup API
+  一致性快照 + 其余文件原样打包成 `backups/wuage-data-<时间戳>.tar.gz`，打包后逐条比对清单（不一致即作废），
+  保留 7 份（`WUAGE_BACKUP_KEEP` 可调）+ 保留 `ledger-*.db` 单文件 7 份；
+  新增 `--verify`（解包跑 `integrity_check`）。cron 日志改到 `$WUAGE_DATA/logs/backup.log`。
+  实测真实数据整包 1.1 MB，三个库 `--verify` 全 ok。⚠️ 服务器 `/usr/bin/python3` 是 3.6（无 backup API），
+  脚本已显式挑 3.7+ 解释器。
+- ✅ **服务实况订正**：当前跑的是 `dsh-public.service`（web 3081 + 网关 8443 合体），
+  `dsh-web` / `dsh-gateway` 均 inactive（2026-08-23 的拆分方案保留但未启用）——已写进 `docs/OPS.md`。
+- ✅ **验收**：服务器 `bash scripts/selftest.sh` 通过（health/categories/增改删回环/weekly），五个服务全 active。
+- ⏳ 待办（本系列剩余）：rc.3 布局升级、理财「复权口径 + 数据源回退」与 AI 持仓分析（见下方"下一步"）。
+
+## 当前状态（2026-09-07）
+- ✅ **记账成员简化**：「本人」= 残雪，系统只保留 残雪/蛙哥 两个角色；本人(member_id=1) 90 笔流水并入残雪，本人归档（备份 ledger-*-before-member-merge.db）。
+- ✅ **工具 #03「健康助手」已上线（首个可用版本）**：scripts/health.py + web/health.html + WUAGE_DATA/health/health.db + wuage-health 技能卡（回答健康问题先读该人全档，避免 AI 不了解病史）；本机 http://127.0.0.1:17626，网关 /home/health/（server.js 已打路由，需重启网关生效）。
+- 🔜 **理财=轻量**：不整包接 Vibe（2核2G 扛不住常驻）；在现有 scripts/finance.py 上补「复权口径 + 数据源回退」；Vibe 仅作 data/finance/vibe/ 按需 CLI 备用。（待做）
+- ✅ **工具级「长时记忆」**：health / finance / ledger 各自新增 `memories` 表 + memo 工具（CLI/API），按域隔离；回答前先读该域记忆，偏好/目标由模型自行判断记录。技能卡 wuage-health / **wuage-finance（新增）** / wuage-ledger 均加入「先读记忆再作答 + 自动记」协议。
+
+## 当前状态（2026-09-06）
+- ✅ **财产盘点完成，家庭净值 519,965 元**（2026-09-06 快照，不含公积金/黄金）：
+  微信现金 7,159｜支付宝活期 41,639｜稳健理财 31,346（1.49%）｜基金·进阶理财 159,821｜
+  基金·雪球 100,000（持有-663/累计-445）｜三年定期存款 180,000（1.6%/年）。
+- ✅ **基金持仓模块已上线**（ledger fund_positions/fund_trades + web /api/funds + 理财页 UI）：
+  13 只基金（进阶12 + 雪球1）总市值 259,819.96 / 成本 257,799.33 / 持有收益 +2,020.63 / 累计 -445；
+  可加仓/减仓（buy/sell 自动重算成本市值）、编辑、删除；供后续 AI 分析持仓。
+- ✅ **全资产已闭环，家庭净值 824,965 元**（2026-09-06）：
+  工资卡 115,000｜微信现金 7,159｜支付宝活期 41,639｜稳健理财 31,346｜
+  基金·进阶 159,821｜基金·雪球 100,000｜三年定存 180,000｜黄金 120g×1000=120,000｜公积金 70,000。
+  ⏳ 待补：AI 持仓分析（读 fund positions + trades 出人话解读）。
+- 📌 行情数据源：vibe-trading 有 25 个免费源（AKShare 含黄金/贵金属）但本机未装 akshare；按用户（没必要实时更新）决定不接入实时行情，仅按需手动更新。
+- ⚠️ 运维教训：scripts 直接跑 CLI 需显式设置 WUAGE_DATA=/root/wuage/data，否则写到 /root/project/data（默认 REPO_ROOT/data）；
+  本次已复制数据到正式库并删掉误建的 /root/project/data/ledger.db。
+
 ## 当前状态（2026-09-06）
 - ✅ **家庭总账 rc.5 已实现并上线**（用户拍板：车不记；固定资产=黄金 120g；账户按存款来源建；
   每月收入 = 工资 18,000 + 公积金 3,000；蛙哥自媒体收入暂不计入；负债暂不做）：

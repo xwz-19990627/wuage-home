@@ -1,0 +1,15 @@
+[Unit]
+Description=DSH Public HTTPS Gateway (0.0.0.0:8443, reverse proxy: dsh web / wuage / filebox)
+After=network.target
+After=dsh-web.service
+Wants=dsh-web.service
+
+[Service]
+Type=simple
+WorkingDirectory=/root/dsh_rsc/public-gateway
+ExecStart=/bin/bash /root/dsh_rsc/public-gateway/start-gateway-foreground.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

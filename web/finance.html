@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>📈 理财助手 · 蛙哥家庭助手</title>
+<style>
+  :root { --bg:#FAF8F3; --card:#fff; --line:#EFEBE3; --ink:#2B2620; --sub:#9A937F; --accent:#D99025; --red:#D9534F; --green:#2E9E6B; --tab:#F1EBDF; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; padding-bottom:80px; }
+  .wrap { max-width:600px; margin:0 auto; padding:14px; }
+  .top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  h1 { font-size:18px; margin:0; }
+  .sub { color:var(--sub); font-size:12px; margin:2px 0 0; }
+  .back { color:var(--sub); font-size:13px; text-decoration:none; }
+  .tabs { display:flex; gap:6px; overflow-x:auto; position:sticky; top:0; background:var(--bg); padding:6px 0 10px; z-index:5; }
+  .tab { flex:0 0 auto; background:var(--tab); border:0; border-radius:99px; padding:7px 13px; font-size:13px; color:var(--ink); cursor:pointer; }
+  .tab.active { background:var(--accent); color:#fff; font-weight:700; }
+  .page { display:none; }
+  .page.on { display:block; }
+  .card { background:var(--card); border-radius:20px; box-shadow:0 2px 10px rgba(43,38,32,.05); padding:14px; margin:12px 0; }
+  .card h2 { font-size:13px; color:var(--sub); font-weight:600; margin:0 0 10px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; text-align:center; }
+  .stat b { display:block; font-size:16px; margin-top:2px; font-weight:800; }
+  .stat span { font-size:11px; color:var(--sub); }
+  label { display:block; font-size:12px; color:var(--sub); margin:8px 0 3px; }
+  input,select,textarea { width:100%; border:1px solid var(--line); background:#fff; border-radius:12px; padding:9px 10px; font-size:14px; color:var(--ink); font-family:inherit; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .btn { border:0; border-radius:10px; padding:7px 12px; font-size:13px; cursor:pointer; }
+  .btn:active { transform:scale(.96); }
+  .btn.primary { background:var(--accent); color:#fff; font-weight:600; }
+  .btn.ghost { background:#F1EBDF; color:#6B624C; }
+  .btn.danger { background:transparent; color:var(--red); }
+  .big-btn { display:block; width:100%; border:0; border-radius:16px; padding:12px; font-size:15px; font-weight:700; cursor:pointer; background:var(--accent); color:#fff; margin-top:10px; }
+  .big-btn:active { transform:scale(.98); }
+  .item { padding:10px 2px; border-bottom:1px solid var(--line); }
+  .item:last-child { border-bottom:0; }
+  .item .name { font-weight:600; font-size:14px; }
+  .item .meta { font-size:12px; color:var(--sub); margin-top:2px; }
+  .item .actions { margin-top:6px; display:flex; gap:8px; }
+  .pos { display:flex; justify-content:space-between; align-items:center; padding:9px 2px; border-bottom:1px solid var(--line); font-size:13px; }
+  .pos:last-child { border-bottom:0; }
+  .pos .up { color:var(--red); }
+  .pos .down { color:var(--green); }
+  .pos .num { font-weight:700; }
+  .empty { text-align:center; padding:20px 0; color:var(--sub); }
+  .toast { position:fixed; left:0; right:0; bottom:64px; display:flex; justify-content:center; pointer-events:none; }
+  .toast div { background:rgba(43,38,32,.88); color:#fff; font-size:13px; border-radius:99px; padding:7px 14px; max-width:86vw; text-align:center; }
+  .answer { background:#FBF6EA; border-radius:14px; padding:10px 12px; margin-top:8px; white-space:pre-wrap; font-size:13px; }
+  .tag { display:inline-block; background:var(--tab); border-radius:99px; font-size:11px; padding:1px 8px; margin:2px 4px 0 0; color:#6B624C; }
+  .hint { font-size:11px; color:var(--sub); margin:6px 2px; }
+  .metric { background:#FBF6EA; border-radius:14px; padding:10px; text-align:center; }
+  .metric b { display:block; font-size:17px; font-weight:800; margin-top:2px; }
+  .metric span { font-size:11px; color:var(--sub); }
+  #equity-canvas { width:100%; height:140px; background:#FBF6EA; border-radius:14px; margin-top:8px; }
+  .foot { text-align:center; color:var(--sub); font-size:11px; padding:10px 0 24px; line-height:1.8; }
+  .foot a { color:var(--sub); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><h1>📈 理财助手</h1><div class="sub">蛙哥家庭助手 · 工具 02 · 基金为主的学习型理财</div></div>
+    <a class="back" href="../home/">返回主页</a>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-page="positions">持仓</button>
+    <button class="tab" data-page="watch">自选</button>
+    <button class="tab" data-page="review">复盘</button>
+    <button class="tab" data-page="backtest">回测</button>
+    <button class="tab" data-page="library">收藏</button>
+    <button class="tab" data-page="notes">笔记</button>
+  </div>
+
+  <!-- 持仓 -->
+  <div class="page on" id="page-positions">
+    <div class="card">
+      <h2>➕ 记一笔交易</h2>
+      <div class="row2">
+        <div><label>代码</label><input id="tx-symbol" placeholder="如 110022 / 510300"></div>
+        <div><label>名称（可留空）</label><input id="tx-name" placeholder="如 易方达消费行业"></div>
+        <div><label>类型</label>
+          <select id="tx-type"><option value="fund">场外基金</option><option value="etf">场内 ETF</option></select>
+        </div>
+        <div><label>方向</label>
+          <select id="tx-direction"><option value="buy">买入/定投</option><option value="sell">卖出</option></select>
+        </div>
+        <div><label>日期</label><input type="date" id="tx-date"></div>
+        <div><label>份额</label><input type="number" step="any" id="tx-shares" placeholder="0.00"></div>
+        <div><label>单价/净值</label><input type="number" step="any" id="tx-price" placeholder="0.0000"></div>
+        <div><label>手续费（元）</label><input type="number" step="any" id="tx-fee" value="0"></div>
+      </div>
+      <label>备注</label><input id="tx-note" placeholder="可选">
+      <button class="big-btn" onclick="addTx()">保存交易</button>
+    </div>
+    <div class="card">
+      <h2>📊 当前持仓</h2>
+      <div id="positions"></div>
+    </div>
+    <div class="card">
+      <h2>🧾 交易流水</h2>
+      <div id="transactions"></div>
+    </div>
+  </div>
+
+  <!-- 自选 -->
+  <div class="page" id="page-watch">
+    <div class="card">
+      <h2>➕ 添加自选</h2>
+      <div class="row2">
+        <div><label>代码</label><input id="wl-symbol" placeholder="如 110022 / sh510300"></div>
+        <div><label>名称（可留空）</label><input id="wl-name" placeholder="可选"></div>
+        <div><label>类型</label>
+          <select id="wl-type"><option value="fund">场外基金</option><option value="etf">场内 ETF</option></select>
+        </div>
+        <div><label>分类</label><input id="wl-category" placeholder="如 白酒/指数/债基"></div>
+      </div>
+      <button class="big-btn" onclick="addWatch()">添加自选</button>
+    </div>
+    <div class="card">
+      <h2>📡 自选/行情 <button class="btn ghost" style="float:right" onclick="refreshQuotes()">立即刷新</button></h2>
+      <div id="watchlist"></div>
+    </div>
+  </div>
+
+  <!-- 复盘 -->
+  <div class="page" id="page-review">
+    <div class="card">
+      <h2>🗓 每日复盘</h2>
+      <div class="row2">
+        <div><label>日期</label><input type="date" id="review-date"></div>
+        <div><label>&nbsp;</label><button class="btn primary" style="width:100%" onclick="loadReview()">查看复盘</button></div>
+      </div>
+      <p class="hint">先到“自选”页刷新行情，再回来查看当日快照复盘。</p>
+    </div>
+    <div class="card">
+      <h2>📋 复盘结果</h2>
+      <div id="review-result">暂无</div>
+    </div>
+  </div>
+
+  <!-- 回测 -->
+  <div class="page" id="page-backtest">
+    <div class="card">
+      <h2>🧪 自研回测</h2>
+      <div class="row2">
+        <div><label>代码</label><input id="bt-symbol" value="110022" placeholder="基金/ETF 代码"></div>
+        <div><label>类型</label>
+          <select id="bt-type"><option value="fund">场外基金</option><option value="etf">场内 ETF</option></select>
+        </div>
+        <div><label>策略</label>
+          <select id="bt-strategy">
+            <option value="dca">定投（DCA）</option>
+            <option value="ma">均线交叉（MA）</option>
+            <option value="rsi">RSI 区间</option>
+          </select>
+        </div>
+        <div><label>结束日期</label><input type="date" id="bt-end"></div>
+      </div>
+      <div id="bt-params"></div>
+      <button class="big-btn" onclick="runBacktest()">运行回测</button>
+      <p class="hint">回测结果仅用于学习，不构成投资建议。场外基金按净值回测，ETF 按日线收盘价回测。</p>
+    </div>
+    <div class="card">
+      <h2>📈 回测结果</h2>
+      <div id="bt-result">暂无</div>
+    </div>
+  </div>
+
+  <!-- 收藏 -->
+  <div class="page" id="page-library">
+    <div class="card">
+      <h2>🎯 收藏策略</h2>
+      <label>策略名</label><input id="st-name" placeholder="如 白酒基金按月定投">
+      <label>描述</label><textarea id="st-desc" rows="2" placeholder="策略逻辑、适用条件等"></textarea>
+      <label>标签</label><input id="st-tags" placeholder="如 定投, 基金">
+      <button class="big-btn" onclick="addStrategy()">保存策略</button>
+      <div id="strategies"></div>
+    </div>
+    <div class="card">
+      <h2>📐 指标/技术常识收藏</h2>
+      <label>指标名</label><input id="ind-name" placeholder="如 缩量放量">
+      <label>分类</label><input id="ind-category" placeholder="如 量能">
+      <label>一句话总结</label><input id="ind-summary" placeholder="缩量 = 成交量变小，放量 = 成交量明显放大">
+      <label>详细解释</label><textarea id="ind-detail" rows="3"></textarea>
+      <label>公式/参数</label><input id="ind-formula" placeholder="可选">
+      <label>标签</label><input id="ind-tags" placeholder="如 量能, 技术分析">
+      <button class="big-btn" onclick="addIndicator()">保存指标</button>
+      <div id="indicators"></div>
+    </div>
+  </div>
+
+  <!-- 笔记 -->
+  <div class="page" id="page-notes">
+    <div class="card">
+      <h2>💬 问一个理财问题（自动记笔记）</h2>
+      <label>问题</label><textarea id="ask-question" rows="2" placeholder="如：什么是缩量、放量？均线怎么看？"></textarea>
+      <label>标签（逗号分隔，可选）</label><input id="ask-tags" placeholder="如 量能, 均线">
+      <button class="big-btn" onclick="askQuestion()">提问并保存笔记</button>
+    </div>
+    <div class="card">
+      <h2>📚 学习笔记</h2>
+      <input id="note-search" placeholder="搜索问题/回答..." onkeyup="loadNotes()">
+      <div id="notes"></div>
+    </div>
+  </div>
+
+  <div class="foot">
+    理财助手只做记录、复盘与学习，<b>不构成投资建议</b><br>
+    数据存于本服务器 data/finance，迁移 = 拷目录
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+var CURRENT = 'positions';
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(msg){ var t=$('toast'); t.innerHTML='<div>'+esc(msg)+'</div>'; clearTimeout(t._h); t._h=setTimeout(function(){ t.innerHTML=''; },2200); }
+function today(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtMoney(c){ if(c==null) return '-'; return (c/100).toFixed(2); }
+function fmtPct(x){ if(x==null) return '-'; return (x>0?'+':'')+Number(x).toFixed(2)+'%'; }
+function api(path, opts){
+  opts = opts || {};
+  return fetch(path, {
+    method: opts.method || 'GET',
+    headers: opts.body ? {'Content-Type':'application/json'} : undefined,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  }).then(function(r){
+    if (!r.ok) return r.json().then(function(j){ throw new Error(j.error || ('HTTP '+r.status)); });
+    return r.json();
+  });
+}
+
+document.querySelectorAll('.tab').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    CURRENT = btn.dataset.page;
+    document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('on'); });
+    $('page-'+CURRENT).classList.add('on');
+    if (CURRENT==='positions') loadPositions();
+    if (CURRENT==='watch') loadWatch();
+    if (CURRENT==='review') loadReview();
+    if (CURRENT==='library') loadLibrary();
+    if (CURRENT==='notes') loadNotes();
+  });
+});
+
+function setBtParams(){
+  var s=$('bt-strategy').value, html='';
+  if (s==='dca'){
+    html = '<div class="row2"><div><label>每期金额（元）</label><input type="number" id="bt-amount" value="1000"></div>'+
+           '<div><label>频率</label><select id="bt-freq"><option value="monthly">每月</option><option value="weekly">每周</option></select></div></div>'+
+           '<div class="row2"><div><label>开始日期</label><input type="date" id="bt-start" value="2018-01-01"></div>'+
+           '<div><label>每月扣款日</label><input type="number" id="bt-day" value="1" min="1" max="31"></div></div>';
+  } else if (s==='ma'){
+    html = '<div class="row2"><div><label>短期均线</label><input type="number" id="bt-short" value="20"></div>'+
+           '<div><label>长期均线</label><input type="number" id="bt-long" value="60"></div></div>'+
+           '<div class="row2"><div><label>初始资金（元）</label><input type="number" id="bt-initial" value="10000"></div>'+
+           '<div><label>开始日期</label><input type="date" id="bt-start" value="2018-01-01"></div></div>';
+  } else {
+    html = '<div class="row2"><div><label>RSI 周期</label><input type="number" id="bt-period" value="14"></div>'+
+           '<div><label>超卖阈值</label><input type="number" id="bt-oversold" value="30"></div></div>'+
+           '<div class="row2"><div><label>超买阈值</label><input type="number" id="bt-overbought" value="70"></div>'+
+           '<div><label>初始资金（元）</label><input type="number" id="bt-initial" value="10000"></div></div>'+
+           '<div><label>开始日期</label><input type="date" id="bt-start" value="2018-01-01"></div>';
+  }
+  $('bt-params').innerHTML = html;
+}
+$('bt-strategy').addEventListener('change', setBtParams);
+$('bt-end').value = today();
+setBtParams();
+
+// ---------------- 持仓 ----------------
+function loadPositions(){
+  api('api/positions').then(function(d){
+    var ps=d.positions||[];
+    if (!ps.length){ $('positions').innerHTML='<div class="empty">还没有持仓，先记一笔买入</div>'; }
+    else {
+      var totalCost=0, totalVal=0;
+      ps.forEach(function(p){ totalCost += p.cost_cents||0; if(p.market_value_cents!=null) totalVal += p.market_value_cents; });
+      var pnl = totalVal-totalCost;
+      $('positions').innerHTML =
+        '<div class="grid" style="margin-bottom:8px">'+
+        '<div class="stat"><span>总成本</span><b>¥'+fmtMoney(totalCost)+'</b></div>'+
+        '<div class="stat"><span>总市值</span><b>¥'+fmtMoney(totalVal)+'</b></div>'+
+        '<div class="stat"><span>浮动盈亏</span><b class="'+(pnl>=0?'up':'down')+'">'+fmtMoney(pnl)+'</b></div>'+
+        '</div>'+
+        ps.map(function(p){
+          var cls = (p.unrealized_pnl_cents||0)>=0 ? 'up' : 'down';
+          return '<div class="pos"><div><div class="name">'+esc(p.name||p.symbol)+' <small>'+esc(p.asset_type)+'</small></div>'+
+            '<div class="meta">'+esc(p.symbol)+' · 份额 '+Number(p.shares).toFixed(2)+' · 成本 ¥'+fmtMoney(p.cost_cents)+
+            ' · 现价 '+(p.last_price!=null?Number(p.last_price).toFixed(4):'-')+'</div></div>'+
+            '<div style="text-align:right">'+(p.market_value_cents!=null?'¥'+fmtMoney(p.market_value_cents):'-')+
+            '<div class="'+cls+'">'+(p.unrealized_pnl_cents!=null?fmtMoney(p.unrealized_pnl_cents)+' ('+fmtPct(p.unrealized_pnl_pct)+')':'')+'</div></div></div>';
+        }).join('') +
+        '<p class="hint">提示：持仓市值需要先到“自选/行情”刷新最新净值/行情。</p>';
+    }
+  }).catch(function(e){ $('positions').innerHTML='<div class="empty">加载失败：'+esc(e.message)+'</div>'; });
+
+  api('api/transactions').then(function(d){
+    var ts=d.transactions||[];
+    if (!ts.length){ $('transactions').innerHTML='<div class="empty">暂无交易流水</div>'; return; }
+    $('transactions').innerHTML = ts.map(function(t){
+      return '<div class="item"><div class="name">'+(t.direction==='buy'?'买入':'卖出')+' · '+esc(t.name||t.symbol)+' <small>'+esc(t.symbol)+'</small></div>'+
+        '<div class="meta">'+esc(t.trade_date)+' · '+Number(t.shares).toFixed(2)+' 份 · ¥'+Number(t.price).toFixed(4)+
+        ' · 金额 ¥'+fmtMoney(t.amount_cents)+(t.fee_cents?' · 费 ¥'+fmtMoney(t.fee_cents):'')+(t.note?' · '+esc(t.note):'')+'</div>'+
+        '<div class="actions"><button class="btn danger" onclick="deleteTx('+t.id+')">删除</button></div></div>';
+    }).join('');
+  }).catch(function(e){ $('transactions').innerHTML='<div class="empty">加载失败：'+esc(e.message)+'</div>'; });
+}
+
+function addTx(){
+  var body = {
+    symbol: $('tx-symbol').value, name: $('tx-name').value, asset_type: $('tx-type').value,
+    direction: $('tx-direction').value, trade_date: $('tx-date').value || today(),
+    shares: $('tx-shares').value, price: $('tx-price').value, fee_cents: parseFloat($('tx-fee').value||0)*100,
+    note: $('tx-note').value
+  };
+  if (!body.symbol || !body.shares || !body.price) { toast('请填写代码、份额和单价'); return; }
+  api('api/transactions', {method:'POST', body:body}).then(function(){
+    toast('已保存'); ['tx-symbol','tx-name','tx-shares','tx-price','tx-fee','tx-note'].forEach(function(id){ $(id).value=''; });
+    loadPositions();
+  }).catch(function(e){ toast('保存失败：'+e.message); });
+}
+
+function deleteTx(id){
+  if (!confirm('确认删除这条交易？')) return;
+  api('api/transactions/'+id, {method:'DELETE'}).then(function(){ loadPositions(); }).catch(function(e){ toast(e.message); });
+}
+
+// ---------------- 自选 ----------------
+function loadWatch(){
+  api('api/watchlist').then(function(d){
+    var ws=d.watchlist||[];
+    if (!ws.length){ $('watchlist').innerHTML='<div class="empty">还没有自选，先添加一个基金或 ETF</div>'; return; }
+    $('watchlist').innerHTML = ws.map(function(w){
+      var l=w.latest||{}, chg = l.change_pct;
+      return '<div class="item"><div class="name">'+esc(w.name||w.symbol)+' <small>'+esc(w.asset_type)+'</small></div>'+
+        '<div class="meta">'+esc(w.symbol)+' · 最新 '+(l.trade_date||'-')+' · '+
+        '价格/净值 '+((l.close!=null)?Number(l.close).toFixed(4):'-')+' · 涨跌 '+(chg!=null?fmtPct(chg):'-')+'</div>'+
+        '<div class="actions"><button class="btn danger" onclick="deleteWatch('+w.id+')">删除</button></div></div>';
+    }).join('');
+  }).catch(function(e){ $('watchlist').innerHTML='<div class="empty">加载失败：'+esc(e.message)+'</div>'; });
+}
+
+function addWatch(){
+  var body = { symbol:$('wl-symbol').value, name:$('wl-name').value, asset_type:$('wl-type').value, category:$('wl-category').value };
+  if (!body.symbol){ toast('请填写代码'); return; }
+  api('api/watchlist', {method:'POST', body:body}).then(function(){
+    toast('已添加'); ['wl-symbol','wl-name','wl-category'].forEach(function(id){ $(id).value=''; });
+    loadWatch();
+  }).catch(function(e){ toast('添加失败：'+e.message); });
+}
+
+function deleteWatch(id){
+  if (!confirm('确认从自选删除？')) return;
+  api('api/watchlist/'+id, {method:'DELETE'}).then(function(){ loadWatch(); }).catch(function(e){ toast(e.message); });
+}
+
+function refreshQuotes(){
+  $('watchlist').innerHTML='<div class="empty">正在刷新行情...</div>';
+  api('api/refresh', {method:'POST', body:{}}).then(function(d){
+    var r=d.results||{};
+    var errs = r.errors||[];
+    if (errs.length) toast('刷新完成，但有 '+errs.length+' 个失败');
+    loadWatch();
+  }).catch(function(e){ toast('刷新失败：'+e.message); loadWatch(); });
+}
+
+// ---------------- 复盘 ----------------
+function loadReview(){
+  if (!$('review-date').value) $('review-date').value = today();
+  api('api/review?date='+$('review-date').value).then(function(d){
+    var html = '<div class="answer">'+esc(d.text||'无')+'</div>';
+    if (d.llm_text) html += '<div class="answer" style="margin-top:10px">🤖 '+esc(d.llm_text)+'</div>';
+    else if (d.llm_error) html += '<div class="hint">LLM 复盘暂不可用：'+esc(d.llm_error)+'</div>';
+    $('review-result').innerHTML = html;
+  }).catch(function(e){ $('review-result').innerHTML='<div class="empty">加载失败：'+esc(e.message)+'</div>'; });
+}
+
+// ---------------- 回测 ----------------
+function runBacktest(){
+  var body = { symbol:$('bt-symbol').value, asset_type:$('bt-type').value, strategy:$('bt-strategy').value, end_date:$('bt-end').value };
+  if (body.strategy==='dca') {
+    body.amount=parseFloat($('bt-amount').value); body.frequency=$('bt-freq').value;
+    body.start_date=$('bt-start').value; body.day=parseInt($('bt-day').value);
+  } else if (body.strategy==='ma') {
+    body.short_window=parseInt($('bt-short').value); body.long_window=parseInt($('bt-long').value);
+    body.initial_amount=parseFloat($('bt-initial').value); body.start_date=$('bt-start').value;
+  } else {
+    body.period=parseInt($('bt-period').value); body.oversold=parseFloat($('bt-oversold').value);
+    body.overbought=parseFloat($('bt-overbought').value); body.initial_amount=parseFloat($('bt-initial').value);
+    body.start_date=$('bt-start').value;
+  }
+  if (!body.symbol){ toast('请填写代码'); return; }
+  $('bt-result').innerHTML='<div class="empty">回测中，可能需要一点时间...</div>';
+  api('api/backtest', {method:'POST', body:body}).then(function(d){
+    renderBacktest(d.result);
+  }).catch(function(e){ $('bt-result').innerHTML='<div class="empty">回测失败：'+esc(e.message)+'</div>'; });
+}
+
+function renderBacktest(r){
+  var out = '<div class="grid">'+
+    '<div class="metric"><span>累计收益</span><b class="'+(r.total_return_pct>=0?'up':'down')+'">'+fmtPct(r.total_return_pct)+'</b></div>'+
+    '<div class="metric"><span>年化</span><b>'+fmtPct(r.annualized_return_pct)+'</b></div>'+
+    '<div class="metric"><span>最大回撤</span><b class="down">'+fmtPct(r.max_drawdown_pct)+'</b></div>'+
+    '<div class="metric"><span>夏普</span><b>'+Number(r.sharpe||0).toFixed(2)+'</b></div>'+
+    '<div class="metric"><span>期末价值</span><b>¥'+fmtMoney(r.final_value_cents)+'</b></div>'+
+    '<div class="metric"><span>投入/初始</span><b>¥'+fmtMoney(r.initial_cents)+'</b></div>'+
+    '</div>';
+  out += '<canvas id="equity-canvas"></canvas>';
+  out += '<div style="margin-top:8px;font-size:12px;color:var(--sub)">'+esc(r.start_date)+' → '+esc(r.end_date)+' · 交易次数 '+(r.trades||[]).length+'</div>';
+  if ((r.trades||[]).length) {
+    out += '<div class="hint">交易明细：</div>';
+    out += r.trades.slice(0,20).map(function(t){
+      var label = t.type ? '买入 '+t.date+' 金额¥'+fmtMoney(t.amount_cents)+' 净值'+Number(t.price).toFixed(4)
+        : '买入 '+t.entry_date+' → 卖出 '+t.exit_date+' 收益 '+fmtPct(t.return_pct);
+      return '<div class="item"><div class="meta">'+esc(label)+'</div></div>';
+    }).join('');
+  }
+  $('bt-result').innerHTML = out;
+  drawEquity((r.equity_curve||[]));
+}
+
+function drawEquity(curve){
+  var c=$('equity-canvas'); if (!c || !curve.length) return;
+  var ctx=c.getContext('2d'); var W=c.width, H=c.height;
+  var min=Math.min.apply(null, curve.map(function(x){return x[1];}));
+  var max=Math.max.apply(null, curve.map(function(x){return x[1];}));
+  var span=(max-min)||1;
+  ctx.clearRect(0,0,W,H); ctx.strokeStyle='#D99025'; ctx.lineWidth=2;
+  ctx.beginPath();
+  curve.forEach(function(p,i){
+    var x=i/(curve.length-1)*W;
+    var y=H-10-((p[1]-min)/span)*(H-20);
+    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+// ---------------- 收藏 ----------------
+function loadLibrary(){
+  api('api/strategies').then(function(d){
+    var ss=d.strategies||[];
+    $('strategies').innerHTML = ss.length ? ss.map(function(s){
+      return '<div class="item"><div class="name">'+esc(s.name)+'</div><div class="meta">'+esc(s.description||'')+
+        (s.tags?' · '+esc(s.tags):'')+'</div><div class="actions"><button class="btn danger" onclick="deleteStrategy('+s.id+')">删除</button></div></div>';
+    }).join('') : '<div class="empty">暂无策略收藏</div>';
+  }).catch(function(e){ $('strategies').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; });
+
+  api('api/indicators').then(function(d){
+    var is=d.indicators||[];
+    $('indicators').innerHTML = is.length ? is.map(function(i){
+      return '<div class="item"><div class="name">'+esc(i.name)+' <small>'+esc(i.category||'')+'</small></div>'+
+        '<div class="meta">'+esc(i.summary||'')+'</div>'+(i.detail?'<div class="meta">'+esc(i.detail)+'</div>':'')+
+        (i.formula?'<div class="meta">公式：'+esc(i.formula)+'</div>':'')+
+        (i.tags?'<div>'+esc(i.tags).split(',').map(function(t){ return '<span class="tag">'+esc(t.trim())+'</span>'; }).join('')+'</div>':'')+
+        '<div class="actions"><button class="btn danger" onclick="deleteIndicator('+i.id+')">删除</button></div></div>';
+    }).join('') : '<div class="empty">暂无指标收藏</div>';
+  }).catch(function(e){ $('indicators').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; });
+}
+
+function addStrategy(){
+  api('api/strategies', {method:'POST', body:{name:$('st-name').value, description:$('st-desc').value, tags:$('st-tags').value}}).then(function(){
+    toast('已保存策略'); ['st-name','st-desc','st-tags'].forEach(function(id){ $(id).value=''; }); loadLibrary();
+  }).catch(function(e){ toast(e.message); });
+}
+function deleteStrategy(id){
+  if (!confirm('删除该策略？')) return;
+  api('api/strategies/'+id, {method:'DELETE'}).then(loadLibrary).catch(function(e){ toast(e.message); });
+}
+function addIndicator(){
+  api('api/indicators', {method:'POST', body:{
+    name:$('ind-name').value, category:$('ind-category').value, summary:$('ind-summary').value,
+    detail:$('ind-detail').value, formula:$('ind-formula').value, tags:$('ind-tags').value
+  }}).then(function(){
+    toast('已保存指标'); ['ind-name','ind-category','ind-summary','ind-detail','ind-formula','ind-tags'].forEach(function(id){ $(id).value=''; });
+    loadLibrary();
+  }).catch(function(e){ toast(e.message); });
+}
+function deleteIndicator(id){
+  if (!confirm('删除该指标？')) return;
+  api('api/indicators/'+id, {method:'DELETE'}).then(loadLibrary).catch(function(e){ toast(e.message); });
+}
+
+// ---------------- 笔记 ----------------
+function askQuestion(){
+  var q=$('ask-question').value.trim();
+  if (!q){ toast('请输入问题'); return; }
+  api('api/ask', {method:'POST', body:{question:q, tags:$('ask-tags').value}}).then(function(d){
+    toast('已回答并保存笔记');
+    $('ask-question').value=''; $('ask-tags').value='';
+    loadNotes();
+  }).catch(function(e){ toast('提问失败：'+e.message); });
+}
+
+function loadNotes(){
+  var q=($('note-search').value||'').trim();
+  var url='api/notes'+(q?'?q='+encodeURIComponent(q):'');
+  api(url).then(function(d){
+    var ns=d.notes||[];
+    if (!ns.length){ $('notes').innerHTML='<div class="empty">暂无笔记</div>'; return; }
+    $('notes').innerHTML = ns.map(function(n){
+      return '<div class="item"><div class="name">Q：'+esc(n.question)+'</div>'+
+        '<div class="answer">'+esc(n.answer)+'</div>'+
+        (n.tags?'<div style="margin-top:6px">'+esc(n.tags).split(',').map(function(t){ return '<span class="tag">'+esc(t.trim())+'</span>'; }).join('')+'</div>':'')+
+        '<div class="actions"><button class="btn danger" onclick="deleteNote('+n.id+')">删除</button></div></div>';
+    }).join('');
+  }).catch(function(e){ $('notes').innerHTML='<div class="empty">'+esc(e.message)+'</div>'; });
+}
+function deleteNote(id){
+  if (!confirm('删除该笔记？')) return;
+  api('api/notes/'+id, {method:'DELETE'}).then(loadNotes).catch(function(e){ toast(e.message); });
+}
+
+// init
+loadPositions();
+</script>
+</body>
+</html>

@@ -22,7 +22,27 @@ import datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = Path(os.environ.get("WUAGE_DATA", str(REPO_ROOT / "data")))
+
+
+def _resolve_data_dir():
+    """数据目录解析：WUAGE_DATA（模块数据目录）> WUAGE_HOME/data > 迁移后默认。
+
+    注意：
+    - WUAGE_DATA 为空字符串时视为未设置，避免 `Path('')` 落到当前目录
+      （曾误建 ./ledger.db），也避免无 WUAGE_DATA 时误写 REPO_ROOT/data。
+    - 2026-08-23 数据根迁移后，仓库运行默认应指向 /root/wuage/data（与 backup.sh、
+      AGENTS.md 保持一致），而非历史 REPO_ROOT/data。
+    """
+    d = os.environ.get("WUAGE_DATA") or ""
+    if d.strip():
+        return Path(d)
+    h = os.environ.get("WUAGE_HOME") or ""
+    if h.strip():
+        return Path(h) / "data"
+    return Path("/root/wuage/data")
+
+
+DATA_DIR = _resolve_data_dir()
 DB_PATH = DATA_DIR / "ledger.db"
 
 # 10 种子 → 16（2026-08-25：+理财/保险/服饰/美妆/宠物(账单画像)、+工资(主动收入月度记录)）
@@ -59,6 +79,8 @@ CATEGORY_MIGRATE_MAP = {"医疗健康": "医疗", "育儿教育": "教育"}
 KINDS = {"expense", "income", "transfer"}
 SOURCES = {"manual", "ai_parsed", "ai_corrected", "import", "monthly"}
 CHANNELS = {"manual", "voice", "wechat", "import"}
+# 默认成员（2026-09-07：用户拍板「本人」=残雪，系统只保留 残雪/蛙哥 两个角色）
+DEFAULT_MEMBER = "残雪"
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS families (
@@ -148,6 +170,20 @@ CREATE TABLE IF NOT EXISTS account_balances (
   created_at    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ab_account_date ON account_balances(account_id, date);
+-- 长时记忆（家庭规则/偏好/摘要，模型自行判断记录）
+CREATE TABLE IF NOT EXISTS memories (
+  id          INTEGER PRIMARY KEY,
+  family_id   INTEGER NOT NULL,
+  member_id   INTEGER,
+  kind        TEXT NOT NULL DEFAULT 'fact',
+  topic       TEXT NOT NULL DEFAULT '',
+  content     TEXT NOT NULL,
+  importance  TEXT NOT NULL DEFAULT 'medium',
+  source      TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mem_fam ON memories(family_id, importance, updated_at);
 """
 
 
@@ -233,11 +269,12 @@ def ensure_seed(conn):
         fam_id = cur.lastrowid
     else:
         fam_id = fam["id"]
-    mem = conn.execute("SELECT id FROM members WHERE family_id=? AND name='本人' LIMIT 1", (fam_id,)).fetchone()
+    mem = conn.execute("SELECT id FROM members WHERE family_id=? AND name=? LIMIT 1",
+                         (fam_id, DEFAULT_MEMBER)).fetchone()
     if mem is None:
         cur = conn.execute(
             "INSERT INTO members (family_id, name, is_active, created_at) VALUES (?,?,1,?)",
-            (fam_id, "本人", now))
+            (fam_id, DEFAULT_MEMBER, now))
         mem_id = cur.lastrowid
     else:
         mem_id = mem["id"]
@@ -445,8 +482,8 @@ def delete_member(conn, family_id, name):
                        (family_id, name)).fetchone()
     if row is None:
         raise LedgerError("成员不存在：{}".format(name))
-    if row["name"] == "本人":
-        raise LedgerError("默认成员'本人'不可删除")
+    if row["name"] == DEFAULT_MEMBER:
+        raise LedgerError("默认成员'{}'不可删除".format(DEFAULT_MEMBER))
     n = conn.execute("SELECT COUNT(*) c FROM transactions WHERE member_id=?", (row["id"],)).fetchone()["c"]
     if n > 0:
         raise LedgerError("该成员已有 {} 笔消费记录，无法删除".format(n))
@@ -627,6 +664,41 @@ def delete_record(conn, tid):
     return cur.rowcount
 
 
+# ── 长时记忆（家庭规则/偏好/摘要，模型自行判断记录） ──────────────────
+def add_memory(conn, family_id, kind="fact", topic="", content="", importance="medium", source="", member_id=None):
+    if not content or not content.strip():
+        raise LedgerError("memory content 不能为空")
+    kind = (kind or "fact").strip().lower()
+    if kind not in ("fact", "preference", "digest"):
+        kind = "fact"
+    imp = (importance or "medium").strip().lower()
+    if imp not in ("high", "medium", "low"):
+        imp = "medium"
+    now = now_iso()
+    cur = conn.execute(
+        "INSERT INTO memories (family_id, member_id, kind, topic, content, importance, source, created_at, updated_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?)",
+        (family_id, member_id, kind, (topic or "").strip(), content.strip(), imp, source, now, now))
+    conn.commit()
+    return cur.lastrowid
+
+
+def list_memories(conn, family_id, limit=50, topic=None, member_id=None):
+    where = ["family_id=?"]
+    params = [family_id]
+    if topic:
+        where.append("topic LIKE ?")
+        params.append("%" + topic + "%")
+    if member_id is not None:
+        where.append("member_id=?")
+        params.append(member_id)
+    sql = ("SELECT * FROM memories WHERE " + " AND ".join(where)
+           + " ORDER BY CASE importance WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,"
+             " updated_at DESC LIMIT ?")
+    params.append(limit)
+    return [row_to_dict(r) for r in conn.execute(sql, params).fetchall()]
+
+
 def list_entries(conn, from_=None, to=None, category=None, member=None, kind=None, limit=None):
     fam_id = ensure_seed(conn)["family_id"]
     where, params = [], []
@@ -753,7 +825,7 @@ def dashboard_data(conn, month_offset=0):
     # 成员当月
     member_spend = {}
     for row in month_rows:
-        name = row.get("member") or "本人"
+        name = row.get("member") or DEFAULT_MEMBER
         member_spend[name] = member_spend.get(name, 0) + row["amount_cents"]
     members = []
     for name, cents in member_spend.items():
@@ -844,7 +916,7 @@ def nature_data(conn, year=None, month=None):
 
 def cmd_init(args, conn):
     ensure_seed(conn)
-    print("ok: db ready + seeds (家庭/本人/现金/{} 分类) at {}".format(len(SEED_CATEGORIES), DB_PATH))
+    print("ok: db ready + seeds (家庭/{}/现金/{} 分类) at {}".format(DEFAULT_MEMBER, len(SEED_CATEGORIES), DB_PATH))
 
 
 def cmd_migrate(args, conn):
@@ -889,7 +961,7 @@ def cmd_list(args, conn):
         return
     print("{} 笔，合计 {:.2f} 元".format(len(rows), sum(r["amount_cents"] for r in rows) / 100))
     for rec in rows:
-        who = "（{}）".format(rec.get("member") or "本人") if rec.get("member") else ""
+        who = "（{}）".format(rec.get("member") or DEFAULT_MEMBER) if rec.get("member") else ""
         print("  #{} {} {}{} {:.2f} 元  [{}] {}".format(
             rec["id"], rec["date"], rec["category"], who,
             rec["amount_cents"] / 100, rec["kind"], rec["note"]))
@@ -994,6 +1066,24 @@ def cmd_weekly(args, conn):
         print("  {}: {:.2f} 元（{}笔）".format(cat, a["total_cents"] / 100, a["count"]))
 
 
+def cmd_memo(args, conn):
+    fam_id = ensure_seed(conn)["family_id"]
+    if args.content:
+        mid = add_memory(conn, fam_id, kind=args.kind, topic=args.topic,
+                         content=args.content, importance=args.importance, source="cli")
+        print("ok: memory #{} 已记（{} / {}）".format(mid, args.kind, args.topic or "无主题"))
+        return
+    rows = list_memories(conn, fam_id, limit=args.limit, topic=args.topic or None)
+    if args.json:
+        print(json.dumps(rows, ensure_ascii=False))
+        return
+    if not rows:
+        print("（无记忆）")
+        return
+    for r in rows:
+        print("#{} [{}] {}（{}）".format(r["id"], r["kind"], r["content"], r["topic"] or "无主题"))
+
+
 def main():
     p = argparse.ArgumentParser(prog="ledger", description="wuage-home 家庭财务 v2")
     sub = p.add_subparsers(dest="cmd")
@@ -1039,6 +1129,14 @@ def main():
     sp.set_defaults(fn=cmd_summary)
     sp = sub.add_parser("weekly", help="本周汇总"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_weekly)
+    sp = sub.add_parser("memo", help="长时记忆：家庭规则/偏好/摘要（模型自行判断）")
+    sp.add_argument("--kind", default="fact", choices=["fact", "preference", "digest"])
+    sp.add_argument("--topic", default="")
+    sp.add_argument("--content", default="")
+    sp.add_argument("--importance", default="medium", choices=["high", "medium", "low"])
+    sp.add_argument("--limit", type=int, default=50)
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(fn=cmd_memo)
     args = p.parse_args()
     if not hasattr(args, "fn"):
         p.print_help()
@@ -1172,6 +1270,70 @@ def networth_data(conn, family_id):
         trend.append({"month": ym, "total_cents": tot})
     return {"accounts": accounts, "total_cents": total, "trend": trend,
             "updated_at": today()}
+
+
+# 活钱从 9 月起算（用户拍板：不动历史数据，从 2026-09-01 起记多少扣多少/加多少）
+CASHFLOW_START = "2026-09-01"
+
+
+def cashflow_data(conn, family_id):
+    """家庭资产简化视图：活钱 / 基金 / 存款 / 黄金。
+
+    活钱（可用现金）= 现金类账户最新余额合计 + CASHFLOW_START 以来净收支（收入-支出）。
+    纯派生计算，不改历史数据；供「9 月起消费从活钱扣」的自动联动。
+    """
+    accounts = list_accounts(conn, family_id)
+
+    def total(ids):
+        return sum(a["latest_balance"] for a in accounts if a["id"] in ids)
+
+    cash_ids = [a["id"] for a in accounts if a.get("type") == "cash"]
+    invest_ids = [a["id"] for a in accounts if a.get("type") == "invest"]
+    save_ids = [a["id"] for a in accounts if a.get("type") == "savings"]
+    asset_ids = [a["id"] for a in accounts if a.get("type") == "asset"]
+
+    cash_base = total(cash_ids)
+    net = 0
+    if cash_ids:
+        marks = ",".join("?" * len(cash_ids))
+        row = conn.execute(
+            "SELECT SUM(CASE WHEN kind='income' THEN amount_cents ELSE -amount_cents END) AS net"
+            " FROM transactions WHERE date>=? AND account_id IN ({})".format(marks),
+            (CASHFLOW_START, *cash_ids)).fetchone()
+        net = (row["net"] or 0) if row else 0
+    live_cash = cash_base + net
+
+    ym = today()[:7]
+
+    def month_sum(kind):
+        if not cash_ids:
+            return 0
+        mk = ",".join("?" * len(cash_ids))
+        rr = conn.execute(
+            "SELECT COALESCE(SUM(amount_cents),0) AS s FROM transactions"
+            " WHERE date LIKE ? AND account_id IN ({}) AND kind=?".format(mk),
+            (ym + "%", *cash_ids, kind)).fetchone()
+        return (rr["s"] or 0) if rr else 0
+
+    month_income = month_sum("income")
+    month_expense = month_sum("expense")
+    month_balance = month_income - month_expense
+
+    buckets = [
+        {"key": "cash", "name": "活钱", "total_cents": cash_base, "live_cents": live_cash,
+         "type_name": "可用现金", "desc": "现金/活期/微信/支付宝/工资结余"},
+        {"key": "invest", "name": "基金", "total_cents": total(invest_ids), "live_cents": total(invest_ids),
+         "type_name": "基金/理财", "desc": "基金持仓"},
+        {"key": "savings", "name": "存款", "total_cents": total(save_ids), "live_cents": total(save_ids),
+         "type_name": "存款/公积金", "desc": "定期/稳健理财/公积金"},
+        {"key": "asset", "name": "黄金", "total_cents": total(asset_ids), "live_cents": total(asset_ids),
+         "type_name": "固定资产", "desc": "黄金 120g"},
+    ]
+    return {"start_at": CASHFLOW_START, "cash_base": cash_base, "net_since": net,
+            "live_cash": live_cash, "buckets": buckets,
+            "total_cents": sum(b["live_cents"] for b in buckets),
+            "month": ym, "month_income": month_income,
+            "month_expense": month_expense, "month_balance": month_balance}
 
 
 def _ensure_gjj_category(conn, family_id):

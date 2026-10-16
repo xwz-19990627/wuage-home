@@ -1,0 +1,15 @@
+[Unit]
+Description=wuage-home Filebox (127.0.0.1:17624)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/project
+Environment=WUAGE_DATA=/root/wuage/data
+Environment=FILEBOX_DATA=/root/wuage/data/files
+ExecStart=/usr/bin/python3.11 /root/project/scripts/filebox.py --host 127.0.0.1 --port 17624
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=wuage-home health assistant (127.0.0.1:17626)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/project
+Environment=WUAGE_DATA=/root/wuage/data
+Environment=HEALTH_DATA=/root/wuage/data/health
+# 模型凭据解析顺序：环境变量 → $WUAGE_DATA/../.credentials.yaml（即 /root/wuage/.credentials.yaml，wuage 自有）
+#                  → $DSH_HOME/.credentials.yaml（历史来源，保留兼容）
+# DSH_HOME 只是第三级兜底；凭据已与 DSH 解耦，DSH 升级/移除不影响本服务。
+Environment=DSH_HOME=/root/dsh_rsc/.dsh
+ExecStart=/usr/bin/python3.11 /root/project/scripts/health.py --host 127.0.0.1 --port 17626
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

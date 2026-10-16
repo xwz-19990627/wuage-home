@@ -11,7 +11,13 @@ wuage-home 的记账模块。数据在数据根 `$WUAGE_HOME/data/ledger.db`（�
 脚本：`scripts/ledger.py`（纯 Python3 标准库，无第三方依赖）。
 
 若不确定当前目录，先 `git rev-parse --show-toplevel` 确认仓库根，所有命令以仓库根为 $REPO 执行。
-命令统一为：`python3 $REPO/scripts/ledger.py ...`
+命令统一为：`export WUAGE_DATA="${WUAGE_DATA:-/root/wuage/data}" && python3 $REPO/scripts/ledger.py ...`
+
+> ⚠️ **每次执行前先确保 `WUAGE_DATA` 指向正式数据（`/root/wuage/data`）**。
+> 若该环境变量未设置，`ledger.py` 会默认落到仓库内 `data/`（即 /root/project/data），
+> 造成「面板看不到刚记的账 / 查账为空」的假象（此前已踩坑）。
+> 用 `${WUAGE_DATA:-/root/wuage/data}` 可兼顾：已设值（如测试用 /tmp/...）保持不变，
+> 未设则落到正式库。
 
 ## 一句话记账流程
 
@@ -59,6 +65,24 @@ wuage-home 的记账模块。数据在数据根 `$WUAGE_HOME/data/ledger.db`（�
 - `list [--from YYYY-MM-DD] [--to ...] [--category X] [--json]`
 - `summary --from ... --to ... [--json]`（区间按类别汇总）
 - `weekly --json`（本周汇总）
+
+## 长时记忆（家庭规则/偏好，模型自行判断记录）
+
+记账有「记忆」：家庭规则、分类习惯、成员消费习惯等值得长期记住的，用户说过就写进库，下次记账自动沿用。
+
+写（用户明确说了家庭规则/偏好时）：
+```bash
+python3 $REPO/scripts/ledger.py memo --kind fact --topic 规则 --content "车不记入家庭账本" --importance high
+python3 $REPO/scripts/ledger.py memo --kind preference --topic 分类 --content "家庭内部互转不算支出" --importance medium
+```
+- `kind`：`fact`（规则/事实）、`preference`（偏好/习惯）、`digest`（一段对话摘要）。
+- 分类清单若用户提到新规则（哪类归哪类、某某不算支出、大额标准），记一条 `fact`。
+- 无需用户手工维护；由你（模型）在对话中判断值得记的再记。
+
+读（需要时）：
+```bash
+python3 $REPO/scripts/ledger.py memo --topic 规则
+```
 
 ## 周报流程
 

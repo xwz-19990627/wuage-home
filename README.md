@@ -21,7 +21,8 @@ DSH_HOME=/root/dsh_rsc/.dsh bash scripts/install-preset.sh
 #    "今天买西瓜花了10块"
 #    "昨天打车23"
 #    "这周花了多少？"
-#    或命令行直连：
+#    或命令行直连（先确保数据目录指向正式库；未设时默认 /root/wuage/data）：
+export WUAGE_DATA="${WUAGE_DATA:-/root/wuage/data}"
 python3 scripts/ledger.py add --json
 python3 scripts/ledger.py categories --add 宠物   # 手动新增分类（LLM 不自动建）
 python3 scripts/ledger.py members --add 妈妈 --relation 老婆 '{"amount_cents":1000,"category":"餐饮","note":"今天买西瓜花了10块"}'
@@ -55,9 +56,21 @@ bash scripts/package.sh        # 打包 → dist/wuage-home-v0.1.1.{zip,tar.gz}�
 # 手机访问：WUAGE_WEB_HOST=0.0.0.0 bash scripts/start-wuage.sh（局域网内可见）
 ```
 
+## 工具箱（工具清册：[docs/TOOLBOX.md](docs/TOOLBOX.md)）
+
+- 📦 **工具 01 · 文件盒子**：跨端文件互传/上传下载（纯 Python 零依赖）
+
+```bash
+# 启用（本机 + 公网）
+bash scripts/start-filebox.sh                                          # http://127.0.0.1:17624
+python3.11 scripts/apply-filebox-gateway.py && sudo systemctl restart dsh-gateway.service   # 家人 https://47.99.118.10:8443/home/files/
+bash scripts/stop-filebox.sh                                          # 停止
+```
+
 ## 现状
 
 - [x] 项目脚手架初始化（git）
+- [x] 工具箱模块 v0.3.0-rc.1：文件盒子（工具 01）
 - [ ] 与 GitHub 远程仓库对接推送
 - [ ] 架构与模块规划（见 docs/ROADMAP.md）
 

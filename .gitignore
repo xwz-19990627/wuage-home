@@ -29,5 +29,10 @@ node_modules/
 # Data (local runtime data, do not commit)
 data/
 logs/
+backups/
 *.db
 *.sqlite3
+
+# macOS 资源分叉（tar/scp 传输时会产生 ._ 文件，别提交）
+._*
+.AppleDouble

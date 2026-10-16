@@ -1,0 +1,13 @@
+[Unit]
+Description=DSH Web (127.0.0.1:3081)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/dsh_rsc
+ExecStart=/bin/bash /root/dsh_rsc/start-dsh-web-foreground.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

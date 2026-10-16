@@ -225,6 +225,15 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, d)
             return
+        if path == "/api/cashflow":
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                d = L.cashflow_data(conn, fam_id)
+            finally:
+                conn.close()
+            self._json(200, d)
+            return
         if path == "/api/funds":
             conn = L.connect()
             try:
@@ -279,7 +288,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 prev = IB.build_preview(records, skipped, conn)
                 if path == "/api/import/run":
-                    member = (body.get("member") or "本人").strip()
+                    member = (body.get("member") or "残雪").strip()
                     result = IB.do_import(records, conn, member=member)
                     prev["imported"] = result["imported"]
                     prev["dup_skipped"] = result["dup"]

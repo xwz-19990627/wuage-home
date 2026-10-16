@@ -597,7 +597,7 @@ def build_preview(records, skipped, conn):
     }
 
 
-def do_import(records, conn, member="本人"):
+def do_import(records, conn, member="残雪"):
     fam_id = L.ensure_seed(conn)["family_id"]
     ids = [r["external_id"] for r in records if r["external_id"]]
     existing = L.existing_external_ids(conn, ids)
@@ -606,8 +606,8 @@ def do_import(records, conn, member="本人"):
         if r["external_id"] in existing:
             skipped_dup += 1
             continue
-        rec_member = (r.get("member") or member or "本人").strip()
-        tags = ["导入"] if rec_member == "本人" else ["导入", rec_member]
+        rec_member = (r.get("member") or member or "残雪").strip()
+        tags = ["导入"] if rec_member == "残雪" else ["导入", rec_member]
         # 大额特殊项自动打标：单笔>=3000 且非 房租/保险/社保 类（2026-08-25 规则）
         if r["amount_cents"] >= 300000 and (r["category"] or "其他") not in ("居住", "保险"):
             tags.append("大额")
@@ -680,7 +680,7 @@ def cmd_preview(args):
             print("   …… 共 {} 笔支出，其余略".format(prev["unmatched_expense_count"]))
     if prev.get("unmatched_rest"):
         print("另有 {} 笔收入/转账归「其他」（理财收益、退款、代付等，备注里有原始信息）。".format(prev["unmatched_rest"]))
-    print(chr(10) + "说明：中性/理财类转转账不计收支；退款按收入冲减；全部记在「本人」名下。")
+    print(chr(10) + "说明：中性/理财类转转账不计收支；退款按收入冲减；全部记在「残雪」名下。")
 
 
 def cmd_import(args):
@@ -713,7 +713,7 @@ def main():
     sp = sub.add_parser("preview"); sp.add_argument("file", nargs="+"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_preview)
     sp = sub.add_parser("import"); sp.add_argument("file", nargs="+"); sp.add_argument("--yes", action="store_true")
-    sp.add_argument("--member", default="本人"); sp.add_argument("--json", action="store_true")
+    sp.add_argument("--member", default="残雪"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_import)
     args = p.parse_args()
     if not hasattr(args, "fn"):

@@ -129,12 +129,79 @@
   #toast.show { opacity:1; transform:translate(-50%,0); }
   #toast.err { background:rgba(217,83,79,.96); }
   #toast.ok { background:rgba(46,158,107,.96); }
+
+  /* ── rc.3 布局升级 ───────────────────────────────────────────────── */
+  /* 底部中央「＋」 */
+  #tabbar { padding-bottom:env(safe-area-inset-bottom,0); }
+  #tabbar button.tab-plus {
+    flex:0 0 62px; margin:-16px 4px 0; padding:0; height:52px; width:52px; align-self:center;
+    border-radius:50%; background:linear-gradient(135deg,#E8A33D,#D99025); color:#fff;
+    font-size:26px; line-height:1; font-weight:400; box-shadow:0 4px 14px rgba(217,144,37,.45);
+    transition:transform .15s ease;
+  }
+  #tabbar button.tab-plus:active { transform:scale(.92); }
+  /* 概览三卡 */
+  .tri { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:6px 0 2px; }
+  .tri-c { background:#FDFCF9; border:1px solid var(--line); border-radius:14px; padding:9px 6px; text-align:center; min-width:0; }
+  .tri-c .t-name { font-size:11px; color:var(--sub); }
+  .tri-c .t-amt { font-size:17px; font-weight:800; margin-top:3px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tri-c .t-amt.out { color:#C0392B; }
+  .tri-c .t-amt.in { color:#1E7A4F; }
+  .tri-c .t-sub { font-size:10px; color:var(--sub); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ov-ring-wrap { display:flex; align-items:center; gap:10px; margin-top:10px; }
+  .ov-ring { width:74px; height:74px; border-radius:50%; background:#F4EFE4; flex:none; display:flex; align-items:center; justify-content:center; }
+  .ov-ring-c { width:52px; height:52px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; }
+  /* 账单时间流 */
+  .tl-day { border-bottom:1px solid var(--line); }
+  .tl-head { display:flex; justify-content:space-between; align-items:baseline; padding:8px 2px 4px; }
+  .tl-date { font-size:13px; font-weight:700; }
+  .tl-sum { font-size:11px; color:var(--sub); font-variant-numeric:tabular-nums; }
+  .tl-row { position:relative; overflow:hidden; }
+  .tl-inner { display:flex; align-items:center; gap:8px; padding:9px 2px; background:#fff; transition:transform .18s ease; position:relative; z-index:2; }
+  .tl-ico { font-size:19px; width:26px; text-align:center; flex:none; }
+  .tl-main { flex:1; min-width:0; display:flex; flex-direction:column; }
+  .tl-cat { font-size:14px; font-weight:600; line-height:1.35; }
+  .tl-note { font-size:11px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.3; }
+  .tl-amt { font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; flex:none; }
+  .tl-amt.in { color:#1E7A4F; }
+  .tl-amt.out { color:#2B2620; }
+  .tl-actions { position:absolute; right:0; top:0; bottom:0; display:flex; z-index:1; }
+  .tl-actions button { border-radius:0; padding:0 14px; font-size:12px; height:100%; }
+  .tl-row.open .tl-inner { transform:translateX(-132px); }
+  .tl-empty { padding:18px 0; }
+  /* 桌面（有鼠标）：操作按钮常驻可点，不依赖滑动 */
+  @media (hover:hover) and (pointer:fine){
+    .tl-inner { padding-right:136px; }
+    .tl-actions { z-index:3; }
+    .tl-actions button { background:#F4EFE4; }
+  }
+  /* 快速记账面板 */
+  #quick { position:fixed; inset:0; z-index:998; }
+  #quick-sheet { position:fixed; left:0; right:0; bottom:0; z-index:1000; display:flex; flex-direction:column; max-height:88vh; }
+  .qk-body { max-height:70vh; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:0 18px calc(10px + env(safe-area-inset-bottom)); }
+  .qk-amount { display:flex; align-items:baseline; gap:6px; margin-top:10px; border-bottom:2px solid var(--accent); padding:2px 0 6px; }
+  .qk-amount span { font-size:22px; font-weight:800; color:var(--accent); }
+  .qk-amount input { flex:1; min-width:0; border:0; font-size:28px; font-weight:800; padding:2px 0; background:transparent; }
+  .qk-amount input:focus { outline:none; }
+  .cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(64px,1fr)); gap:6px; }
+  .cat-cell { background:#FDFCF9; border:1px solid var(--line); border-radius:12px; padding:8px 2px; text-align:center; cursor:pointer; transition:transform .12s ease; }
+  .cat-cell:active { transform:scale(.95); }
+  .cat-cell.on { border-color:var(--accent); background:#FBF3E4; box-shadow:0 0 0 1px var(--accent) inset; }
+  .cat-cell .cc-ico { font-size:18px; }
+  .cat-cell .cc-name { font-size:11px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cat-cell .cc-badge { font-size:9px; color:var(--sub); }
+  /* 重复交易提示 */
+  #dup-box { position:fixed; inset:0; z-index:1200; display:none; }
+  #dup-box .dup-mask { position:absolute; inset:0; background:rgba(43,38,32,.45); }
+  #dup-box .dup-card { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(88vw,360px); background:#fff; border-radius:18px; padding:16px; box-shadow:0 10px 34px rgba(0,0,0,.25); }
+  .dup-item { font-size:12px; color:var(--sub); border-top:1px dashed var(--line); padding:6px 0; }
+  @media (min-width:720px){ .qk-sheet { max-width:520px; margin:0 auto; } }
   @media (max-width:360px){ .pie{ width:110px; height:110px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>🐸蛙哥家庭助手<span class="ver" id="ver">v0.2.0-rc.2</span>
+  <h1>🐸蛙哥家庭助手<span class="ver" id="ver">v0.2.0-rc.3</span>
     <button class="ghost" id="btn-home" style="display:none;float:right;padding:3px 10px;font-size:12px">← 主页</button>
   </h1>
   <div id="user-bar" style="margin:2px 0 0;font-size:12px;color:var(--sub)">👤 当前设备：<b id="user-name">残雪</b> <button class="ghost" id="btn-switch-user" style="padding:2px 8px;font-size:11px;margin-left:4px">切换</button></div>
@@ -159,6 +226,68 @@
 
   <!-- 记账：工作区概览 -->
   <div id="view-ledger" class="view">
+    <!-- 概览三卡（rc.3）：本月支出 / 收入 / 结余 + 环比同比 + 分类占比环（并预留预算进度环位） -->
+    <div class="card" id="ov-cards">
+      <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:4px">
+        <span class="mn-nav"><button class="mn-btn" id="h-prev">‹</button><span id="h-month">--</span><button class="mn-btn" id="h-next">›</button></span>
+        <span class="hint" id="ov-budget-slot" title="预算模块上线后这里显示本月预算进度环"></span>
+      </div>
+      <div class="tri">
+        <div class="tri-c">
+          <div class="t-name">本月支出</div>
+          <div class="t-amt out" id="ov-expense">--</div>
+          <div class="t-sub" id="ov-expense-sub">—</div>
+        </div>
+        <div class="tri-c">
+          <div class="t-name">本月收入</div>
+          <div class="t-amt in" id="ov-income">--</div>
+          <div class="t-sub" id="ov-income-sub">—</div>
+        </div>
+        <div class="tri-c">
+          <div class="t-name">本月结余</div>
+          <div class="t-amt" id="ov-balance">--</div>
+          <div class="t-sub" id="ov-balance-sub">—</div>
+        </div>
+      </div>
+      <div class="meta-row"><span class="d-avg" id="d-avg"></span><span class="cmp" id="d-mom"></span><span class="cmp" id="d-yoy"></span></div>
+      <div class="ov-ring-wrap">
+        <div class="ov-ring" id="ov-ring"><span class="ov-ring-c" id="ov-ring-c">--</span></div>
+        <div class="hint" id="ov-ring-hint" style="flex:1;min-width:0">分类占比环（记满一个月后显示占比最高的分类）</div>
+      </div>
+      <div style="margin-top:10px"><button class="primary" data-goto="quick" style="width:100%">✍️ 记一笔</button></div>
+    </div>
+  <!-- 财务区块（rc.3 并入概览：净资产 / 本月结余 / 资产 / 更新余额） -->
+  <div id="fin-section" class="fin-section">
+    <div class="card" style="background:linear-gradient(135deg,#F7E8CF,#FDF6EA)">
+      <h2>💰 家庭总账 · 净资产</h2>
+      <div class="big" id="nw-total">--<small>元</small></div>
+      <div class="meta-row" id="nw-meta"></div>
+      <div id="nw-advice" style="margin-top:8px"></div>
+      <div id="nw-trend" style="margin-top:6px"></div>
+    </div>
+    <div class="card" id="ai-gate">
+      <h2>🤖 AI 一句话记账 <span class="ver">自然语言 → 自动入账并扣减活钱</span></h2>
+      <p class="hint" style="margin:0 0 8px">点「去 AI 记账」，用一句话描述消费（如：今天买菜花了86、打车23、妈妈给红包200），确认保存即从「活钱」里自动加/扣。</p>
+      <button class="primary" id="btn-goto-ai" style="width:100%">✍️ 去 AI 记账</button>
+    </div>
+    <div class="card">
+      <h2>🏦 资产 <span class="ver">活钱 / 基金 / 存款 / 黄金</span></h2>
+      <div id="nw-accounts"></div>
+      <div class="hint" id="nw-buckets-hint" style="margin-top:6px"></div>
+    </div>
+    <div id="nw-edit" class="card" style="display:none">
+      <h2>更新账户余额</h2>
+      <input id="nw-edit-name" style="width:100%" readonly>
+      <div class="row" style="margin-top:6px">
+        <input id="nw-edit-amount" type="number" step="0.01" min="0" placeholder="余额（元）" style="flex:1">
+        <input id="nw-edit-date" type="date" style="flex:1">
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="primary" id="nw-edit-save" style="flex:1">保存</button>
+        <button class="ghost" id="nw-edit-cancel">取消</button>
+      </div>
+    </div>
+  </div>
     <div class="card">
       <h2>支出性质 <span class="ver" id="n-month-label">--</span></h2>
       <div class="row" style="margin-bottom:6px">
@@ -167,14 +296,6 @@
       <div id="n-month-sec"></div>
       <div class="hint" style="margin:12px 0 2px">📅 全年汇总（<span id="n-year-label"></span>）</div>
       <div id="n-year-sec"></div>
-    </div>
-    <div class="card">
-      <div class="hint"><span class="mn-nav"><button class="mn-btn" id="h-prev">‹</button><span id="h-month">--</span><button class="mn-btn" id="h-next">›</button></span></div>
-      <div class="big" id="d-total">--</div>
-      <div class="meta-row"><span class="d-avg" id="d-avg"></span><span class="cmp" id="d-mom"></span><span class="cmp" id="d-yoy"></span></div>
-      <div style="margin-top:10px">
-        <button class="primary" data-goto="ai" style="width:100%">✍️ 记一笔</button>
-      </div>
     </div>
     <div class="card">
       <h2>支出构成</h2>
@@ -269,9 +390,28 @@
         <span id="f-custom-wrap" style="display:none"><input id="f-from" type="date" style="padding:4px"> ~ <input id="f-to" type="date" style="padding:4px"></span>
         <div class="chips" id="f-cat-chips"></div>
         <div class="chips" id="f-mem-chips"></div>
+        <div class="seg" id="bill-view-seg" style="margin-top:4px">
+          <button data-v="timeline" class="on">时间流</button><button data-v="table">表格</button>
+        </div>
       </div>
-      <table><thead><tr><th>日期</th><th>分类</th><th class="num">金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="bill-rows"></tbody></table>
+      <div id="bill-timeline"></div>
+      <div id="bill-table-wrap" style="display:none">
+        <table><thead><tr><th>日期</th><th>分类</th><th class="num">金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="bill-rows"></tbody></table>
+      </div>
       <div class="hint" style="text-align:right" id="bill-total"></div>
+    </div>
+    <div class="card" id="bill-edit" style="display:none">
+      <h2>✏️ 修改这笔</h2>
+      <div class="row">
+        <input id="be-date" type="date" style="flex:1">
+        <input id="be-amount" type="number" step="0.01" min="0.01" style="width:100px">
+        <select id="be-category" style="flex:1"></select>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <input id="be-note" type="text" placeholder="备注" style="flex:1">
+        <button class="primary" id="be-save" type="button">保存</button>
+        <button class="ghost" id="be-cancel" type="button">取消</button>
+      </div>
     </div>
   </div>
 
@@ -325,47 +465,6 @@
     </div>
   </div>
 
-  <!-- 财务：家庭总账 + 支出性质 -->
-  <div id="view-finance" class="view">
-    <div class="card" style="background:linear-gradient(135deg,#F7E8CF,#FDF6EA)">
-      <h2>💰 家庭总账 · 净资产</h2>
-      <div class="big" id="nw-total">--<small>元</small></div>
-      <div class="meta-row" id="nw-meta"></div>
-      <div id="nw-advice" style="margin-top:8px"></div>
-      <div id="nw-trend" style="margin-top:6px"></div>
-    </div>
-    <div class="card">
-      <h2>📆 本月结余 <span class="ver">收入 − 支出 · 自动计入活钱</span></h2>
-      <div class="row" style="gap:10px;align-items:baseline">
-        <div style="flex:1"><div class="hint">收入</div><div class="big" id="nw-month-income" style="font-size:22px">--<small>元</small></div></div>
-        <div style="flex:1"><div class="hint">支出</div><div class="big" id="nw-month-expense" style="font-size:22px">--<small>元</small></div></div>
-        <div style="flex:1"><div class="hint">结余</div><div class="big" id="nw-month-balance" style="font-size:22px">--<small>元</small></div></div>
-      </div>
-      <div class="hint" id="nw-month-note" style="margin-top:4px"></div>
-    </div>
-    <div class="card" id="ai-gate">
-      <h2>🤖 AI 一句话记账 <span class="ver">自然语言 → 自动入账并扣减活钱</span></h2>
-      <p class="hint" style="margin:0 0 8px">点「去 AI 记账」，用一句话描述消费（如：今天买菜花了86、打车23、妈妈给红包200），确认保存即从「活钱」里自动加/扣。</p>
-      <button class="primary" id="btn-goto-ai" style="width:100%">✍️ 去 AI 记账</button>
-    </div>
-    <div class="card">
-      <h2>🏦 资产 <span class="ver">活钱 / 基金 / 存款 / 黄金</span></h2>
-      <div id="nw-accounts"></div>
-      <div class="hint" id="nw-buckets-hint" style="margin-top:6px"></div>
-    </div>
-    <div id="nw-edit" class="card" style="display:none">
-      <h2>更新账户余额</h2>
-      <input id="nw-edit-name" style="width:100%" readonly>
-      <div class="row" style="margin-top:6px">
-        <input id="nw-edit-amount" type="number" step="0.01" min="0" placeholder="余额（元）" style="flex:1">
-        <input id="nw-edit-date" type="date" style="flex:1">
-      </div>
-      <div class="row" style="margin-top:6px">
-        <button class="primary" id="nw-edit-save" style="flex:1">保存</button>
-        <button class="ghost" id="nw-edit-cancel">取消</button>
-      </div>
-    </div>
-  </div>
 
 </div>
 
@@ -379,12 +478,63 @@
 </div>
 
 <nav id="tabbar">
-  <button class="on" data-view="ai">AI记账</button>
   <button data-view="ledger">概览</button>
   <button data-view="bills">账单</button>
+  <button id="tab-plus" class="tab-plus" type="button" title="记一笔">＋</button>
+  <button data-view="ai">AI记账</button>
   <button data-view="licai">理财</button>
-  <button data-view="finance">财务</button>
 </nav>
+
+<!-- 快速记账面板（rc.3：底部中央「＋」→ 一句话 / 手动 两页签，可互切） -->
+<div id="quick" style="display:none">
+  <div class="pk-overlay" id="quick-ov"></div>
+  <div class="pk-sheet qk-sheet" id="quick-sheet">
+    <div class="pk-head"><b>✍️ 记一笔</b><button class="pk-close" id="quick-close" type="button">×</button></div>
+    <div class="qk-body">
+      <div class="seg" id="quick-seg" style="margin-bottom:10px">
+        <button data-v="ai" class="on" type="button">🤖 一句话</button><button data-v="manual" type="button">✍️ 手动</button>
+      </div>
+      <div id="quick-ai">
+        <div class="row">
+          <input id="q-text" type="text" placeholder="午餐20 / 打车23 / 妈妈给红包200" style="flex:1;min-width:0;font-size:15px">
+          <button class="primary" id="q-parse" type="button">解析</button>
+        </div>
+        <div class="hint" id="q-hint">说一句话，AI 解析后自动跳到手动页核对保存。</div>
+      </div>
+      <div id="quick-manual" style="display:none">
+        <div class="seg" id="q-kind-seg">
+          <button data-v="expense" class="on" type="button">支出</button><button data-v="income" type="button">收入</button>
+        </div>
+        <div class="qk-amount"><span>¥</span><input id="q-amount" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00"></div>
+        <div class="hint" style="margin:6px 0 2px">常用分类（按使用频率排序）</div>
+        <div class="cat-grid" id="q-cats"></div>
+        <div class="row" style="margin-top:8px">
+          <input id="q-date" type="date" style="flex:1">
+          <button class="ghost" id="q-member" type="button" style="flex:1">残雪</button>
+        </div>
+        <input id="q-note" type="text" placeholder="备注（可选）" style="width:100%;margin-top:6px">
+        <div class="row" style="margin-top:10px">
+          <button class="primary" id="q-save" type="button" style="flex:2">保存</button>
+          <button class="ghost" id="q-more" type="button" style="flex:1">完整页</button>
+        </div>
+        <div class="hint" id="q-manual-hint"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 重复交易提示（rc.3） -->
+<div id="dup-box">
+  <div class="dup-mask"></div>
+  <div class="dup-card">
+    <h2 style="margin:0 0 6px">🤔 疑似重复记账</h2>
+    <div id="dup-body"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="ghost" id="dup-no" type="button" style="flex:1">取消</button>
+      <button class="primary" id="dup-yes" type="button" style="flex:1">仍然记账</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (function () {
@@ -459,6 +609,10 @@
   }
 
   function showView(id){
+    // rc.3：财务页已并入概览；旧书签 #/ledger/finance 仍能落到概览
+    if(id==="finance")id="ledger";
+    // rc.3：底部中央「＋」不是页面，走快速记账面板
+    if(id==="quick"){openQuick();return;}
     document.querySelectorAll(".view").forEach(function(v){v.classList.remove("on");});
     document.getElementById("view-"+id).classList.add("on");
     document.querySelectorAll("#tabbar button").forEach(function(b){b.classList.toggle("on",b.dataset.view===id);});
@@ -467,10 +621,9 @@
     $("btn-home").style.display=isHome?"none":"";
     if(isHome){var g=$("d-greet");if(g)g.textContent="🏠 吾家 · "+(getDevUser()||"家人");}
     if(id==="ai") loadNatureCats();
-    if(id==="ledger"){loadDashboard();loadNature();}
+    if(id==="ledger"){loadDashboard();loadNature();loadFinance();}
     if(id==="bills") loadBills();
     if(id==="licai") loadLicai();
-    if(id==="finance") loadFinance();
     try{
       var hh=(id==="home")?"#/home":(id==="ledger"?"#/ledger":"#/ledger/"+id);
       if(location.hash!==hh)location.replace(hh);
@@ -486,9 +639,10 @@
     var tb=ev.target.closest?ev.target.closest("#tabbar button"):null;
     if(tb){return;}
   });
-  ["ai","ledger","bills","licai","finance"].forEach(function(v){
+  ["ai","ledger","bills","licai"].forEach(function(v){
     document.querySelector("#tabbar button[data-view="+v+"]").addEventListener("click",function(){showView(v);});
   });
+  $("tab-plus").addEventListener("click",function(){openQuick();});
 
   function renderChips(box,opts,pick){
     box.innerHTML="";
@@ -505,11 +659,16 @@
     });
   }
   function loadMeta(){
-    return fetch("api/health").then(function(r){return r.json();}).then(function(h){
-      CATS=h.categories||[];
+    // rc.3：改读 /api/categories（带 icon/color/使用次数），分类可显示图标
+    return fetch("api/categories").then(function(r){return r.json();}).then(function(d){
+      var objs=d.categories||[];
+      CAT_OBJ={};
+      objs.forEach(function(c){CAT_OBJ[c.name]=c;});
+      CATS=objs.map(function(c){return c.name;});
       fillSelect($("f-category"),CATS,"餐饮");
-      CAT_CHIPS=[{value:"",label:"全部类别",active:true}].concat(CATS.map(function(c){return {value:c,label:c,active:false};}));
+      CAT_CHIPS=[{value:"",label:"全部类别",active:true}].concat(objs.map(function(c){return {value:c.name,label:(c.icon||"")+" "+c.name,active:false};}));
       renderChips($("f-cat-chips"),CAT_CHIPS,function(v){B_CAT=v;loadBills();});
+      buildCatGrid();
       return fetch("api/members").then(function(m){return m.json();}).then(function(d){
         MEMS=(d.members||[]).map(function(x){return x.name;});
         fillSelect($("f-member"),MEMS,getDevUser());
@@ -517,6 +676,125 @@
         renderChips($("f-mem-chips"),MEM_CHIPS,function(v){B_MEM=v;loadBills();});
       });
     }).catch(function(e){$("ver").textContent="连接后端失败："+e;});
+  }
+
+  // ── rc.3：分类图标 / 常用分类网格 / 重复检测 / 快速记账面板 ──────────
+  var CAT_OBJ={};
+  function catIcon(n){var c=CAT_OBJ[n];return (c&&c.icon)||"🏷️";}
+  function catColor(n){var c=CAT_OBJ[n];return (c&&c.color)||"";}
+  function catPill(n){
+    var col=catColor(n);
+    return col?("background:"+col+"22;color:"+col+";border:1px solid "+col+"44"):pillStyle(n);
+  }
+  // 常用分类：按使用次数降序取前 8，其余按维护顺序；点击选中
+  var Q_CAT="", Q_KIND="expense", Q_MEMBER="";
+  function topCats(n){
+    var all=Object.keys(CAT_OBJ).map(function(k){return CAT_OBJ[k];});
+    var used=all.filter(function(c){return (c.cnt||0)>0;}).sort(function(a,b){return (b.cnt||0)-(a.cnt||0);});
+    var rest=all.filter(function(c){return (c.cnt||0)<=0;});
+    return used.concat(rest).slice(0,n||8);
+  }
+  function buildCatGrid(){
+    var box=$("q-cats");if(!box)return;
+    box.innerHTML="";
+    topCats(8).forEach(function(c){
+      var b=document.createElement("div");
+      b.className="cat-cell"+(c.name===Q_CAT?" on":"");
+      b.innerHTML="<div class='cc-ico'>"+(c.icon||"🏷️")+"</div><div class='cc-name'>"+esc(c.name)+"</div>"+
+                  "<div class='cc-badge'>"+(c.cnt?c.cnt+" 笔":"")+"</div>";
+      b.onclick=function(){Q_CAT=c.name;buildCatGrid();$("q-manual-hint").textContent="";};
+      box.appendChild(b);
+    });
+    var more=document.createElement("div");
+    more.className="cat-cell";more.innerHTML="<div class='cc-ico'>➕</div><div class='cc-name'>更多</div><div class='cc-badge'></div>";
+    more.onclick=function(){ openGridPicker({title:"选择分类",items:CATS.map(function(n){return {v:n,t:catIcon(n)+" "+n};}),value:Q_CAT,onPick:function(v){Q_CAT=v;buildCatGrid();}}); };
+    box.appendChild(more);
+  }
+  function openQuick(tab){
+    var q=$("quick");if(!q)return;
+    q.style.display="";
+    Q_MEMBER=getDevUser()||($("f-member")&&$("f-member").value)||"";
+    $("q-date").value=todayS();
+    $("q-member").textContent=Q_MEMBER||"未设置";
+    if(!Q_CAT)Q_CAT=CATS[0]||"";
+    buildCatGrid();
+    quickTab(tab||"ai");
+  }
+  function closeQuick(){var q=$("quick");if(q)q.style.display="none";}
+  function quickTab(v){
+    document.querySelectorAll("#quick-seg button").forEach(function(b){b.classList.toggle("on",b.dataset.v===v);});
+    $("quick-ai").style.display=(v==="ai")?"":"none";
+    $("quick-manual").style.display=(v==="manual")?"":"none";
+    if(v==="ai"){
+      $("q-hint").textContent="说一句话，AI 解析后自动跳到手动页核对保存。";
+      setTimeout(function(){try{$("q-text").focus();}catch(e){}},80);
+    }
+  }
+  function quickSetKind(k){
+    Q_KIND=k;
+    document.querySelectorAll("#q-kind-seg button").forEach(function(b){b.classList.toggle("on",b.dataset.v===k);});
+  }
+  // 重复交易检测（rc.3）：命中同日期+同金额时先问一句
+  function checkDup(body,go){
+    var q="date="+encodeURIComponent(body.date||todayS())+"&amount_cents="+encodeURIComponent(body.amount_cents||0);
+    if(body.category)q+="&category="+encodeURIComponent(body.category);
+    if(body.kind)q+="&kind="+encodeURIComponent(body.kind);
+    if(body.exclude_id)q+="&exclude_id="+encodeURIComponent(body.exclude_id);
+    fetch("api/entries/check-dup?"+q).then(function(r){return r.json();}).then(function(d){
+      if(!d||!d.dup){go();return;}
+      askDup(d,go);
+    }).catch(function(){go();});   // 检测失败不挡记账
+  }
+  function askDup(d,go){
+    var box=$("dup-box");if(!box){go();return;}
+    var rows="";
+    (d.matches||[]).forEach(function(m){
+      rows+="<div class='dup-item'>"+(m.same_category?"⚠️ ":"")+esc(m.date)+" · "+catIcon(m.category)+esc(m.category)+
+            " · "+yuan(m.amount_cents)+" 元"+(m.note?" · "+esc(m.note):"")+(m.member?" · "+esc(m.member):"")+"</div>";
+    });
+    $("dup-body").innerHTML="近 "+(d.days||30)+" 天内已有 <b>"+d.count+"</b> 笔相同日期、相同金额的记录："+rows+
+      "<div class='hint' style='margin-top:8px'>确认不是重复记账就点「仍然记账」。</div>";
+    $("dup-box").style.display="block";
+    $("dup-yes").onclick=function(){box.style.display="none";go();};
+    $("dup-no").onclick=function(){box.style.display="none";};
+  }
+  // 手势：左滑露出操作、长按编辑（桌面仍保留按钮）
+  function bindSwipe(row,onEdit,onDel){
+    var inner=row.querySelector(".tl-inner");
+    var sx=0,sy=0,dx=0,moved=false,wasOpen=false,lp=null;
+    row.addEventListener("touchstart",function(ev){
+      var t=ev.touches[0];sx=t.clientX;sy=t.clientY;dx=0;moved=false;
+      wasOpen=row.classList.contains("open");
+      row.classList.remove("open");
+      lp=setTimeout(function(){lp=null;if(!moved&&onEdit)onEdit();},550);
+    },{passive:true});
+    row.addEventListener("touchmove",function(ev){
+      var t=ev.touches[0];dx=t.clientX-sx;
+      if(Math.abs(dx)>6||Math.abs(t.clientY-sy)>6){moved=true;if(lp){clearTimeout(lp);lp=null;}}
+      if(dx<-8&&Math.abs(dx)>Math.abs(t.clientY-sy)){
+        var x=Math.max(-132,dx);inner.style.transition="none";inner.style.transform="translateX("+x+"px)";
+      }
+    },{passive:true});
+    row.addEventListener("touchend",function(){
+      if(lp){clearTimeout(lp);lp=null;}
+      inner.style.transition="";
+      if(dx<-60){inner.style.transform="";row.classList.add("open");return;}
+      inner.style.transform="";row.classList.remove("open");
+      // 轻点收起的行 → 直接编辑（避免"必须左滑才能改"的隐藏操作）；点开着的行只是收起
+      if(!moved&&!wasOpen&&onEdit)onEdit();
+    });
+    if(onDel){
+      var del=document.createElement("button");
+      del.className="danger";del.textContent="删除";
+      del.onclick=function(){onDel();};
+      row.querySelector(".tl-actions").appendChild(del);
+    }
+    if(onEdit){
+      var ed=document.createElement("button");
+      ed.className="ghost";ed.textContent="改";
+      ed.onclick=function(){onEdit();};
+      row.querySelector(".tl-actions").appendChild(ed);
+    }
   }
 
   // ── 首页 Dashboard（月份用 ‹ › 箭头切换） ──────────────────────────
@@ -528,29 +806,51 @@
   function loadDashboard(){
     var off=H_OFF||0;
     fetch("api/dashboard?offset="+off).then(function(r){return r.json();}).then(function(d){
-      $("d-total").innerHTML=yuan(d.month_total_cents)+" <small>元</small>";
+      // ── rc.3 概览三卡：支出 / 收入 / 结余 ──
+      var exp=d.month_total_cents||0, inc=d.month_income_cents||0, bal=(d.month_balance_cents!=null?d.month_balance_cents:(inc-exp));
+      $("ov-expense").innerHTML=yuan(exp)+"<small> 元</small>";
+      $("ov-income").innerHTML=yuan(inc)+"<small> 元</small>";
+      var be=$("ov-balance");
+      be.innerHTML=(bal<0?"-":"")+yuan(Math.abs(bal))+"<small> 元</small>";
+      be.style.color=bal<0?"#C0392B":(bal>0?"#1E7A4F":"var(--text)");
+      $("ov-expense-sub").textContent=(d.expense_count||0)+" 笔 · 日均 "+yuan(Math.round(exp/(d.days_elapsed||1)))+" 元";
+      $("ov-income-sub").textContent=(d.income_count||0)+" 笔";
+      $("ov-balance-sub").textContent=(bal>=0?"结余为正 👍":"入不敷出 ⚠️");
+      $("ov-budget-slot").textContent="预算待上线";
+      // 分类占比环（预留预算进度环位）：显示占比最高分类
+      var shares=d.cat_share||[],total=exp||1;
+      if(shares.length){
+        var top1=shares[0],p1=Math.round(top1.total_cents/total*100);
+        $("ov-ring").style.background="conic-gradient(#D99025 0% "+p1+"%, #E9DFCD "+p1+"% 100%)";
+        $("ov-ring-c").textContent=p1+"%";
+        $("ov-ring-hint").innerHTML="占比最高：<b>"+catIcon(top1.name)+" "+esc(top1.name)+"</b> "+yuan(top1.total_cents)+" 元（"+p1+"%）<br>预算模块上线后，这个环会变成预算进度。";
+      }else{
+        $("ov-ring").style.background="#F4EFE4";
+        $("ov-ring-c").textContent="--";
+        $("ov-ring-hint").textContent="本月还没有支出记录。";
+      }
       var days=d.days_elapsed||1;
-      $("d-avg").innerHTML="日均 <b>"+yuan(Math.round(d.month_total_cents/days))+"</b> 元/天";
+      $("d-avg").innerHTML="日均 <b>"+yuan(Math.round(exp/days))+"</b> 元/天";
       var dl=$("d-mom");
       if(d.change_pct===null){dl.innerHTML="环比 <i>无记录</i>";dl.className="cmp";dl.title="上月无支出记录";}
       else{dl.innerHTML="环比 "+(d.change_pct>0?"↑":"↓")+Math.abs(d.change_pct)+"%";dl.className="cmp "+(d.change_pct>0?"up":"down");dl.title="上月支出 "+yuan(d.prev_total_cents)+" 元";}
       var yl=$("d-yoy");
       if(d.yoy_pct===null){yl.innerHTML="同比 <i>无记录</i>";yl.className="cmp";yl.title="去年同月（"+d.last_year_month+"）无支出记录";}
       else{yl.innerHTML="同比 "+(d.yoy_pct>0?"↑":"↓")+Math.abs(d.yoy_pct)+"%";yl.className="cmp "+(d.yoy_pct>0?"up":"down");yl.title="去年同月（"+d.last_year_month+"）支出 "+yuan(d.last_year_total_cents)+" 元";}
-      var total=d.month_total_cents||1;
-      var shares=d.cat_share||[];
-      $("d-pie-c").innerHTML=yuan(d.month_total_cents)+"<small>本月支出</small>";
-      if(!shares.length){
+      var total2=exp||1;
+      var shares2=d.cat_share||[];
+      $("d-pie-c").innerHTML=yuan(exp)+"<small>本月支出</small>";
+      if(!shares2.length){
         $("d-pie").style.background="#F4EFE4";
         $("d-rank").innerHTML=emptyGuide("本月还没有记账");
         $("d-bars").innerHTML="";
         return;
       }
       var grad=[],acc=0,rk="";
-      shares.forEach(function(s,i){
-        var p=Math.round(s.total_cents/total*100);
+      shares2.forEach(function(s,i){
+        var p=Math.round(s.total_cents/total2*100);
         grad.push(COLORS[i%COLORS.length]+" "+acc+"% "+(acc+p)+"%");acc+=p;
-        rk+="<div class='rank-row'><span class='rk' style='background:"+COLORS[i%COLORS.length]+"'>"+(i+1)+"</span><span class='rn'>"+esc(s.name)+"</span><span class='rb'><i style='width:"+p+"%;background:"+COLORS[i%COLORS.length]+"'></i></span><span class='ra'>"+yuan(s.total_cents)+" · "+p+"%</span></div>";
+        rk+="<div class='rank-row'><span class='rk' style='background:"+COLORS[i%COLORS.length]+"'>"+(i+1)+"</span><span class='rn'>"+catIcon(s.name)+" "+esc(s.name)+"</span><span class='rb'><i style='width:"+p+"%;background:"+COLORS[i%COLORS.length]+"'></i></span><span class='ra'>"+yuan(s.total_cents)+" · "+p+"%</span></div>";
       });
       $("d-pie").style.background="conic-gradient("+grad.join(",")+")";
       $("d-rank").innerHTML=rk;
@@ -562,7 +862,7 @@
         bt+="<div class='bar' style='height:"+h+"%' title='"+x.date+"'><span>"+(x.total_cents?yuan(x.total_cents):"")+"</span><i>"+x.date.slice(5)+"</i></div>";
       });
       $("d-bars").innerHTML=bt;
-    }).catch(function(e){$("d-total").textContent="加载失败";});
+    }).catch(function(e){if($("ov-expense"))$("ov-expense").textContent="加载失败";});
   }
   function initMonthSelect(){
     renderHMonth();
@@ -699,7 +999,7 @@
     $("ai-conf").textContent="置信度 "+Math.round((p.ai_confidence||0.8)*100)+"%";
     var kt=p.kind==="income"?"收入":(p.kind==="transfer"?"转账":"支出");
     var kp=p.kind==="income"?"background:#DFF2E8;color:#1E7A4F":(p.kind==="transfer"?"background:#E4EDF7;color:#2C5F8A":"background:#FBE3E0;color:#C0392B");
-    $("ai-view").innerHTML="<span class='pill' style='"+kp+"'>"+kt+"</span> 金额 <b>"+yuan(p.amount_cents)+"</b> 元 · "+esc(p.date)+" · <span class='pill' style='"+pillStyle(p.category)+"'>"+esc(p.category)+"</span> · "+esc(p.member||"残雪")+(p.merchant?" · 🏪 "+esc(p.merchant):"")+" · "+esc(p.note);
+    $("ai-view").innerHTML="<span class='pill' style='"+kp+"'>"+kt+"</span> 金额 <b>"+yuan(p.amount_cents)+"</b> 元 · "+esc(p.date)+" · <span class='pill' style='"+catPill(p.category)+"'>"+catIcon(p.category)+" "+esc(p.category)+"</span> · "+esc(p.member||"残雪")+(p.merchant?" · 🏪 "+esc(p.merchant):"")+" · "+esc(p.note);
     $("ai-card").style.display="";$("ai-fields").style.display="";$("ai-edit").style.display="none";$("parse-hint").textContent="";
     fillSelect($("e-category"),CATS,p.category);
     var memOpts=[p.member||"残雪"].concat(MEMS.filter(function(m){return m!==(p.member||"残雪");}));
@@ -714,13 +1014,16 @@
     var body={};
     ["amount_cents","date","kind","category","member","merchant","note","tags"].forEach(function(k){body[k]=CURRENT[k];});
     body.source="ai_parsed";body.channel="manual";body.raw_text=CURRENT.note;body.ai_confidence=CURRENT.ai_confidence;
+    checkDup(body,function(){ doConfirmSave(body); });
+  }
+  function doConfirmSave(body){
     fetch("api/entries",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
       .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
       .then(function(res){
         if(!res.ok){showToast("保存失败："+(res.d.error||""),"err");return;}
         dropDraft();hideCard();$("parse-hint").textContent="✅ 已确认记账：["+res.d.category+"] "+((res.d.kind==="income")?"收入 ":"")+yuan(res.d.amount_cents)+" 元";
         showToast("✅ 已记账 "+yuan(res.d.amount_cents)+" 元","ok");
-        loadBills();
+        loadBills();loadDashboard();
       }).catch(function(e){showToast("保存失败："+e,"err");});
   }
   function startEditCard(){$("ai-fields").style.display="none";$("ai-edit").style.display="";}
@@ -742,11 +1045,15 @@
   function manualAdd(){
     var amt=parseFloat($("f-amount").value);if(!(amt>0)){showToast("金额不对","err");return;}
     if(!$("f-category").value){showToast("请选择分类","err");return;}
-    fetch("api/entries",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({kind:$("f-kind").value,amount_cents:Math.round(amt*100),date:$("f-date").value||undefined,category:$("f-category").value,member:$("f-member").value||undefined,note:$("f-note").value.trim()})})
-      .then(function(r){return r.json();}).then(function(d){
-        if(d.error){showToast("失败："+d.error,"err");return;}
-        $("f-amount").value="";$("f-note").value="";showToast("✅ 已保存","ok");loadBills();
-      }).catch(function(e){showToast("保存失败："+e,"err");});
+    var body={kind:$("f-kind").value,amount_cents:Math.round(amt*100),date:$("f-date").value||undefined,
+              category:$("f-category").value,member:$("f-member").value||undefined,note:$("f-note").value.trim()};
+    checkDup(body,function(){
+      fetch("api/entries",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+        .then(function(r){return r.json();}).then(function(d){
+          if(d.error){showToast("失败："+d.error,"err");return;}
+          $("f-amount").value="";$("f-note").value="";showToast("✅ 已保存","ok");loadBills();loadDashboard();
+        }).catch(function(e){showToast("保存失败："+e,"err");});
+    });
   }
 
   // ── 账单（筛选：seg 时间段 + 胶囊分类/成员） ───────────────────────
@@ -759,18 +1066,59 @@
     if(v==="custom"&&$("f-from").value&&$("f-to").value)return "from="+$("f-from").value+"&to="+$("f-to").value;
     return "";
   }
+  var B_ENTRIES={}, B_VIEW="timeline", BE_ID=null;
+  function dayLabel(ds){
+    var d=new Date(ds+"T00:00:00"),t=new Date();t.setHours(0,0,0,0);
+    var wk=["日","一","二","三","四","五","六"][d.getDay()];
+    var diff=Math.round((t-d)/86400000);
+    var rel=(diff===0)?"今天":(diff===1)?"昨天":(diff===2)?"前天":"";
+    return (d.getMonth()+1)+"月"+d.getDate()+"日 周"+wk+(rel?" · "+rel:"");
+  }
   function loadBills(){
     var q=rangeQ();
     if(B_CAT)q+="&category="+encodeURIComponent(B_CAT);
     if(B_MEM)q+="&member="+encodeURIComponent(B_MEM);
     fetch("api/entries?"+q).then(function(r){return r.json();}).then(function(d){
-      var rows=d.entries||[],tb=$("bill-rows");tb.innerHTML="";
-      var total=rows.reduce(function(s,r){return s+r.amount_cents;},0);
-      $("bill-total").textContent=rows.length?("合计 "+yuan(total)+" 元 · "+rows.length+" 笔"):"";
-      if(!rows.length){tb.innerHTML="<tr><td colspan=5 class=empty>暂无账单，试试用 AI 记一笔吧</td></tr>";return;}
+      var rows=d.entries||[],tb=$("bill-rows"),tl=$("bill-timeline");
+      B_ENTRIES={};rows.forEach(function(r){B_ENTRIES[r.id]=r;});
+      tb.innerHTML="";tl.innerHTML="";
+      var total=rows.reduce(function(s,r){return s+(r.kind==="income"?r.amount_cents:0);},0);
+      var out=rows.reduce(function(s,r){return s+(r.kind==="income"?0:r.amount_cents);},0);
+      $("bill-total").textContent=rows.length?("支出 "+yuan(out)+" · 收入 "+yuan(total)+" · 共 "+rows.length+" 笔"):"";
+      if(!rows.length){
+        tb.innerHTML="<tr><td colspan=5 class=empty>暂无账单</td></tr>";
+        tl.innerHTML="<div class='tl-empty'>"+emptyGuide("这段时间还没有账单")+"</div>";
+        return;
+      }
+      // ── 时间流：按日期分组 + 每日小计 + 收支分行 ──
+      var groups=[],cur=null;
+      rows.forEach(function(r){
+        if(!cur||cur.date!==r.date){cur={date:r.date,items:[]};groups.push(cur);}
+        cur.items.push(r);
+      });
+      groups.forEach(function(g){
+        var gOut=0,gIn=0;
+        g.items.forEach(function(r){ if(r.kind==="income")gIn+=r.amount_cents; else gOut+=r.amount_cents; });
+        var head=document.createElement("div");head.className="tl-head";
+        head.innerHTML="<span class='tl-date'>"+esc(dayLabel(g.date))+"</span><span class='tl-sum'>"+
+          (gOut?("支 "+yuan(gOut)):"")+(gOut&&gIn?" · ":"")+(gIn?("收 "+yuan(gIn)):"")+"</span>";
+        var day=document.createElement("div");day.className="tl-day";day.appendChild(head);
+        g.items.forEach(function(r){
+          var row=document.createElement("div");row.className="tl-row";
+          row.innerHTML="<div class='tl-actions'></div><div class='tl-inner'>"+
+            "<span class='tl-ico'>"+catIcon(r.category)+"</span>"+
+            "<span class='tl-main'><span class='tl-cat'>"+esc(r.category)+"</span>"+
+              "<span class='tl-note'>"+esc(r.note||r.merchant||"")+(r.member?" · "+esc(r.member):"")+"</span></span>"+
+            "<span class='tl-amt "+(r.kind==="income"?"in":"out")+"'>"+(r.kind==="income"?"+":"-")+yuan(r.amount_cents)+"</span></div>";
+          bindSwipe(row,function(){billEdit(r.id);},function(){billDelete(r.id);});
+          day.appendChild(row);
+        });
+        tl.appendChild(day);
+      });
+      // ── 表格视图（桌面友好）──
       rows.forEach(function(r){
         var tr=document.createElement("tr");tr.dataset.id=r.id;
-        tr.innerHTML="<td>"+esc(r.date)+"</td><td><span class='pill' style='"+pillStyle(r.category)+"'>"+esc(r.category)+"</span></td>"+
+        tr.innerHTML="<td>"+esc(r.date)+"</td><td><span class='pill' style='"+catPill(r.category)+"'>"+catIcon(r.category)+" "+esc(r.category)+"</span></td>"+
           "<td class='num "+(r.kind==="income"?"amt-in":"amt-out")+"'>"+(r.kind==="income"?"+":"-")+yuan(r.amount_cents)+"</td>"+
           "<td>"+esc(r.note)+"<br><span style=color:#9A937F;font-size:11px>"+esc(r.member||"残雪")+(r.merchant?" · "+esc(r.merchant):"")+"</span></td>"+
           "<td><button class='ghost' data-a=edit>改</button> <button class='danger' data-a=del>删</button></td>";
@@ -778,25 +1126,46 @@
       });
     }).catch(function(e){});
   }
+  function billDelete(id){
+    var e=B_ENTRIES[id];
+    if(!confirm("删除这笔？"+(e?("\n"+e.date+" "+e.category+" "+yuan(e.amount_cents)+" 元"):"")))return;
+    fetch("api/entries/"+id,{method:"DELETE"}).then(function(){showToast("已删除","ok");loadBills();loadDashboard();});
+  }
+  function billEdit(id){
+    var e=B_ENTRIES[id];if(!e)return;
+    BE_ID=id;
+    $("be-date").value=e.date;
+    $("be-amount").value=(e.amount_cents/100).toFixed(2);
+    fillSelect($("be-category"),CATS,e.category);
+    $("be-note").value=e.note||"";
+    $("bill-edit").style.display="";
+    $("bill-edit").scrollIntoView({behavior:"smooth",block:"center"});
+  }
   document.addEventListener("click",function(ev){
     var b=ev.target.closest?ev.target.closest("button[data-a]"):null;
     if(!b)return;
-    var tr=b.closest("tr");
-    if(b.dataset.a==="del"){if(!confirm("删除这笔？"))return;fetch("api/entries/"+tr.dataset.id,{method:"DELETE"}).then(function(){loadBills();});return;}
-    if(b.dataset.a==="edit"){
-      var d=tr.children[0].textContent.trim(),c=tr.children[1].textContent.trim(),amt=parseFloat(tr.children[2].textContent.replace(/[^0-9.]/g,"")),note=tr.children[3].firstChild?tr.children[3].firstChild.textContent:"";
-      tr.innerHTML="";var td=document.createElement("td");td.colSpan=5;td.className="edit-row";
-      var di=document.createElement("input");di.type="date";di.value=d;
-      var cs=document.createElement("select");fillSelect(cs,CATS,c);pickerize(cs,"分类");
-      var ai=document.createElement("input");ai.type="number";ai.step="0.01";ai.value=amt.toFixed(2);ai.style.width="76px";
-      var ni=document.createElement("input");ni.type="text";ni.value=note;
-      var sa=document.createElement("button");sa.className="primary";sa.textContent="存";
-      var ca=document.createElement("button");ca.className="ghost";ca.textContent="撤";
-      sa.onclick=function(){fetch("api/entries/"+tr.dataset.id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({category:cs.value,note:ni.value.trim(),date:di.value,amount_cents:Math.round(parseFloat(ai.value)*100)})}).then(function(){loadBills();});};
-      ca.onclick=loadBills;
-      td.appendChild(di);td.appendChild(cs);td.appendChild(ai);td.appendChild(ni);td.appendChild(sa);td.appendChild(ca);tr.appendChild(td);
-    }
+    var tr=b.closest("tr"),id=tr&&tr.dataset.id;
+    if(!id)return;
+    if(b.dataset.a==="del"){billDelete(id);return;}
+    if(b.dataset.a==="edit"){billEdit(id);}
   });
+  function billEditSave(){
+    if(!BE_ID)return;
+    var amt=parseFloat($("be-amount").value);
+    if(!(amt>0)){showToast("金额不对","err");return;}
+    var body={date:$("be-date").value,category:$("be-category").value,
+              amount_cents:Math.round(amt*100),note:$("be-note").value.trim()};
+    // 判重时排除自己这条（PATCH 不接受 exclude_id，别混进 body）
+    var probe={date:body.date,category:body.category,amount_cents:body.amount_cents,exclude_id:BE_ID};
+    checkDup(probe,function(){
+      fetch("api/entries/"+BE_ID,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+        .then(function(r){return r.json();}).then(function(x){
+          if(x.error){showToast("保存失败："+x.error,"err");return;}
+          $("bill-edit").style.display="none";BE_ID=null;
+          showToast("已保存","ok");loadBills();loadDashboard();
+        }).catch(function(e){showToast("保存失败："+e,"err");});
+    });
+  }
 
 
   // ── 财务（支出性质） ─────────────────────────────────────────────────
@@ -1171,6 +1540,21 @@
             }).catch(function(e){showToast("设置失败："+e,"err");sel.value=c.nature||"necessary";});
         });
         row.appendChild(nm);row.appendChild(cnt);row.appendChild(sel);
+        // rc.3：排序（与相邻分类换位；顺序同时决定记一笔面板里的排列）
+        [["↑",-1],["↓",1]].forEach(function(mv){
+          var mb=document.createElement("button");mb.className="ghost";
+          mb.style.cssText="padding:3px 7px;font-size:12px";mb.textContent=mv[0];
+          mb.title=(mv[1]<0?"上移":"下移")+"「"+c.name+"」（影响记账面板分类顺序）";
+          mb.onclick=function(){
+            fetch("api/categories/"+c.id,{method:"PATCH",headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({move:mv[1]<0?"up":"down"})})
+              .then(function(r){return r.json();}).then(function(x){
+                if(x.ok){loadNatureCats();loadMeta();}
+                else showToast("排序失败："+(x.error||""),"err");
+              }).catch(function(e){showToast("排序失败："+e,"err");});
+          };
+          row.appendChild(mb);
+        });
         var ed=document.createElement("button");ed.className="ghost";
         ed.style.cssText="padding:3px 8px;font-size:12px";ed.textContent="✎";
         ed.title="编辑/改名";
@@ -1247,12 +1631,84 @@
   });
   ["f-from","f-to"].forEach(function(id){$(id).addEventListener("change",loadBills);});
 
+  // ── rc.3 快速记账面板（底部中央「＋」）的事件接线 ─────────────────
+  function quickSave(){
+    var amt=parseFloat($("q-amount").value);
+    if(!(amt>0)){showToast("金额不对","err");return;}
+    if(!Q_CAT){showToast("请选分类","err");return;}
+    var body={kind:Q_KIND,amount_cents:Math.round(amt*100),date:$("q-date").value||todayS(),
+              category:Q_CAT,member:Q_MEMBER||undefined,note:$("q-note").value.trim()};
+    checkDup(body,function(){
+      fetch("api/entries",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+        .then(function(r){return r.json();}).then(function(d){
+          if(d.error){showToast("失败："+d.error,"err");return;}
+          $("q-amount").value="";$("q-note").value="";
+          showToast("✅ 已记账 "+yuan(d.amount_cents)+" 元","ok");
+          closeQuick();loadBills();loadDashboard();loadNature();
+        }).catch(function(e){showToast("保存失败："+e,"err");});
+    });
+  }
+  function quickParse(){
+    var text=$("q-text").value.trim();
+    if(!text){$("q-hint").textContent="先说一句话，比如：午餐20";return;}
+    $("q-hint").textContent="🤔 大模型解析中…";
+    fetch("api/parse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:text})})
+      .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+      .then(function(res){
+        if(!res.ok){$("q-hint").textContent="解析失败："+(res.d.error||"");return;}
+        var p=res.d.parsed||{};
+        var _u=getDevUser();
+        if((!p.member||p.member==="残雪")&&_u&&_u!=="残雪")p.member=_u;
+        // 解析结果灌进手动页 → 核对后保存（两个入口可互切）
+        quickSetKind(p.kind==="income"?"income":"expense");
+        $("q-amount").value=(p.amount_cents/100).toFixed(2);
+        $("q-date").value=p.date||todayS();
+        $("q-note").value=[p.note,p.merchant].filter(Boolean).join(" ");
+        if(p.category&&CAT_OBJ[p.category])Q_CAT=p.category;
+        Q_MEMBER=p.member||Q_MEMBER;
+        $("q-member").textContent=Q_MEMBER||"未设置";
+        buildCatGrid();
+        $("q-text").value="";
+        quickTab("manual");
+        $("q-manual-hint").textContent="🤖 已按「"+text+"」填好，核对后点保存（置信度 "+Math.round((p.ai_confidence||0.8)*100)+"%）";
+      }).catch(function(e){$("q-hint").textContent="解析失败："+e;});
+  }
+  function quickInit(){
+    if($("quick").dataset.wired)return;
+    $("quick").dataset.wired="1";
+    $("quick-close").onclick=closeQuick;
+    $("quick-ov").onclick=closeQuick;
+    document.querySelectorAll("#quick-seg button").forEach(function(b){b.onclick=function(){quickTab(b.dataset.v);};});
+    document.querySelectorAll("#q-kind-seg button").forEach(function(b){b.onclick=function(){quickSetKind(b.dataset.v);};});
+    $("q-parse").onclick=quickParse;
+    $("q-save").onclick=quickSave;
+    $("q-text").addEventListener("keydown",function(ev){if(ev.key==="Enter")quickParse();});
+    $("q-member").onclick=function(){
+      if(!MEMS.length)return;
+      openWheelPicker({title:"记到谁名下",items:MEMS.map(function(m){return {v:m,t:m};}),value:Q_MEMBER,
+        onPick:function(v){Q_MEMBER=v;$("q-member").textContent=v;}});
+    };
+    $("q-more").onclick=function(){closeQuick();showView("ai");};
+    document.querySelectorAll("#bill-view-seg button").forEach(function(b){
+      b.onclick=function(){
+        B_VIEW=b.dataset.v;
+        document.querySelectorAll("#bill-view-seg button").forEach(function(x){x.classList.toggle("on",x===b);});
+        $("bill-timeline").style.display=(B_VIEW==="timeline")?"":"none";
+        $("bill-table-wrap").style.display=(B_VIEW==="table")?"":"none";
+      };
+    });
+    $("be-save").onclick=billEditSave;
+    $("be-cancel").onclick=function(){$("bill-edit").style.display="none";BE_ID=null;};
+    $("dup-box").addEventListener("click",function(ev){if(ev.target.className==="dup-mask")$("dup-box").style.display="none";});
+  }
+
   $("f-date").value=todayS();
   // 原生下拉 → 滚轮选择器（分类/成员/收支类型/财务年月）
   [["f-kind","收支类型"],["e-category","分类"],["e-member","成员"],["f-category","分类"],["f-member","成员"]].forEach(function(p){
     var s=$(p[0]); if(s)pickerize(s,p[1]);
   });
   initMonthSelect();
+  quickInit();
   function viewFromHash(){
     var h=(location.hash||"").replace(/^#\/+?/,"");
     if(h.slice(0,7)==="ledger/"){var s=h.split("/")[1]||"";return ["ai","bills","licai","finance"].indexOf(s)>=0?s:"ledger";}

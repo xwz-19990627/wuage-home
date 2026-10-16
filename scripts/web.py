@@ -120,6 +120,26 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(200, {"categories": cats})
             return
+        if path == "/api/entries/check-dup":
+            # rc.3 重复交易检测：同日期+同金额（近 N 天）→ 疑似重复
+            conn = L.connect()
+            try:
+                try:
+                    amount = int(q.get("amount_cents") or 0)
+                    days = int(q.get("days") or 30)
+                except ValueError:
+                    self._error(400, "amount_cents / days must be int")
+                    return
+                d = L.check_duplicate(conn, q.get("date") or L.today(), amount,
+                                      category=q.get("category") or None,
+                                      kind=q.get("kind") or None,
+                                      member=q.get("member") or None,
+                                      days=days,
+                                      exclude_id=q.get("exclude_id") or None)
+            finally:
+                conn.close()
+            self._json(200, d)
+            return
         if path == "/api/entries":
             limit = None
             try:
@@ -371,7 +391,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(201, {"ok": True, "id": pid})
             return
         if path.startswith("/api/funds/"):
-            m = re.match(r"^/api/funds/(d+)/trade$", path)
+            m = re.match(r"^/api/funds/(\d+)/trade$", path)
             if m:
                 try:
                     body = self._read_body()
@@ -449,6 +469,11 @@ class Handler(BaseHTTPRequestHandler):
                         raise L.LedgerError("name required")
                     cid = L.add_category(conn, fam_id, body["name"], nature=body.get("nature"),
                                          parent=body.get("parent"))
+                    if body.get("icon") or body.get("color") or body.get("sort_order") is not None:
+                        L.update_category(conn, fam_id, cid, {
+                            "icon": body.get("icon"), "color": body.get("color"),
+                            "sort_order": body.get("sort_order"),
+                        })
                     result = {"ok": True, "id": cid}
                 else:
                     if not body.get("name"):
@@ -503,11 +528,11 @@ class Handler(BaseHTTPRequestHandler):
                     raise L.LedgerError("bad body: {}".format(e))
                 if name_prefix == "categories":
                     if not body:
-                        raise L.LedgerError("缺少修改字段（name 或 nature）")
-                    if body.get("name"):
-                        L.rename_category(conn, fam_id, rid, body["name"])
-                    if "nature" in body:
-                        L.set_category_nature(conn, fam_id, rid, body["nature"])
+                        raise L.LedgerError("缺少修改字段（name/nature/icon/color/sort_order/move）")
+                    if body.get("move") in ("up", "down"):
+                        L.move_category(conn, fam_id, rid, 1 if body["move"] == "down" else -1)
+                    else:
+                        L.update_category(conn, fam_id, rid, body)
                 else:
                     raise L.LedgerError("members 改名暂不支持")
             except L.LedgerError as e:

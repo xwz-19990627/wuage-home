@@ -55,6 +55,21 @@ SEED_NATURE = {"居住": "fixed", "通讯": "fixed", "保险": "fixed",
                "服饰": "discretionary", "美妆": "discretionary", "宠物": "discretionary",
                "理财": "discretionary", "其他": "discretionary"}
 
+# 分类图标/配色（2026-10-16，rc.3 布局升级：分类显示图标）。
+# 只给**种子分类**兜底；自定义分类留空，前端退回按名字哈希生成的彩色 Pills。
+CATEGORY_ICON = {
+    "餐饮": "🍚", "交通": "🚌", "医疗": "💊", "购物": "🛍️", "教育": "📚",
+    "娱乐": "🎮", "居住": "🏠", "通讯": "📶", "人情": "🧧", "服饰": "👕",
+    "美妆": "💄", "宠物": "🐾", "理财": "💰", "保险": "🛡️", "工资": "💼",
+    "其他": "❓",
+}
+CATEGORY_COLOR = {
+    "餐饮": "#D99025", "交通": "#4A6FA5", "医疗": "#C0565A", "购物": "#8B5E9E",
+    "教育": "#2E9E6B", "娱乐": "#D97706", "居住": "#6B7280", "通讯": "#0E9AA7",
+    "人情": "#C0392B", "服饰": "#A5678F", "美妆": "#D46A6A", "宠物": "#7A9E5E",
+    "理财": "#B58A3C", "保险": "#5B7C99", "工资": "#2E9E6B", "其他": "#9A937F",
+}
+
 
 NATURE_ALIAS = {"固定": "fixed", "必要": "necessary", "非必要": "discretionary",
                "固定支出": "fixed", "必要支出": "necessary", "非必要支出": "discretionary"}
@@ -257,11 +272,29 @@ def _migrate_external(conn):
     return True
 
 
+def _migrate_category_style(conn):
+    """幂等：给**还空着**的种子分类补默认图标/配色（2026-10-16）。
+
+    只填 NULL，不覆盖用户自己设置的；自定义分类不动（前端退回哈希配色）。
+    """
+    filled = 0
+    for name, icon in CATEGORY_ICON.items():
+        color = CATEGORY_COLOR.get(name, "")
+        cur = conn.execute(
+            "UPDATE categories SET icon=?, color=?"
+            " WHERE name=? AND (icon IS NULL OR icon='' OR color IS NULL OR color='')",
+            (icon, color, name))
+        filled += cur.rowcount or 0
+    conn.commit()
+    return filled
+
+
 def ensure_seed(conn):
-    """幂等：默认家庭 / 本人成员 / 现金账户 / 种子 10 分类。"""
+    """幂等：默认家庭 / 本人成员 / 现金账户 / 种子 16 分类（含图标配色）。"""
     init_db(conn)
     _migrate_nature(conn)
     _migrate_external(conn)
+    _migrate_category_style(conn)
     now = now_iso()
     fam = conn.execute("SELECT id FROM families ORDER BY id LIMIT 1").fetchone()
     if fam is None:
@@ -290,8 +323,10 @@ def ensure_seed(conn):
         if row is None:
             ctype = "income" if name == "工资" else "expense"
             conn.execute(
-                "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature) VALUES (?,?,?,1,?,?)",
-                (fam_id, name, ctype, i, SEED_NATURE.get(name, "necessary")))
+                "INSERT INTO categories (family_id, name, type, is_system, sort_order, nature, icon, color)"
+                " VALUES (?,?,?,1,?,?,?,?)",
+                (fam_id, name, ctype, i, SEED_NATURE.get(name, "necessary"),
+                 CATEGORY_ICON.get(name), CATEGORY_COLOR.get(name)))
     conn.commit()
     return {"family_id": fam_id, "member_id": mem_id, "account_id": acc_id}
 
@@ -360,7 +395,8 @@ def list_categories(conn, family_id):
     rows = conn.execute(
         "SELECT c.*, (SELECT COUNT(*) FROM transactions t WHERE t.category_id=c.id) AS cnt"
         " FROM categories c WHERE c.family_id=? AND c.is_archived=0"
-        " ORDER BY c.is_system DESC, c.sort_order, c.id",
+        # 2026-10-16（rc.3）：sort_order 优先于 is_system，用户可把常用分类排到前面
+        " ORDER BY c.sort_order, c.is_system DESC, c.id",
         (family_id,)).fetchall()
     out = []
     for r in rows:
@@ -368,6 +404,10 @@ def list_categories(conn, family_id):
         n = d.get("nature") if d.get("nature") in NATURES else "necessary"
         d["nature"] = n
         d["nature_name"] = NATURES[n]
+        if not d.get("icon"):
+            d["icon"] = CATEGORY_ICON.get(d["name"]) or "🏷️"
+        if not d.get("color"):
+            d["color"] = CATEGORY_COLOR.get(d["name"]) or ""
         out.append(d)
     return out
 
@@ -417,6 +457,117 @@ def rename_category(conn, family_id, cid, new_name):
         raise LedgerError("分类已存在：{}".format(new_name))
     conn.execute("UPDATE categories SET name=? WHERE id=?", (new_name, cid))
     conn.commit()
+
+
+def update_category(conn, family_id, cid, fields):
+    """改分类（rc.3）：name / nature / icon / color / sort_order。
+
+    只改传进来的字段；name 走 rename_category 的重名校验。
+    """
+    row = conn.execute("SELECT * FROM categories WHERE id=? AND family_id=?",
+                       (cid, family_id)).fetchone()
+    if row is None:
+        raise LedgerError("分类不存在")
+    if fields.get("name") and fields["name"].strip() != row["name"]:
+        rename_category(conn, family_id, cid, fields["name"].strip())
+    if "nature" in fields and fields["nature"]:
+        set_category_nature(conn, family_id, cid, fields["nature"])
+    sets, params = [], []
+    for col in ("icon", "color"):
+        if col in fields and fields[col] is not None:
+            sets.append("{}=?".format(col))
+            params.append(str(fields[col]).strip())
+    if "sort_order" in fields and fields["sort_order"] is not None:
+        try:
+            order = int(fields["sort_order"])
+        except (TypeError, ValueError):
+            raise LedgerError("sort_order 必须是整数")
+        sets.append("sort_order=?")
+        params.append(order)
+    if sets:
+        params.extend([cid, family_id])
+        conn.execute("UPDATE categories SET {} WHERE id=? AND family_id=?;".format(",".join(sets)),
+                     params)
+        conn.commit()
+    return cid
+
+
+def move_category(conn, family_id, cid, delta):
+    """上移/下移分类（rc.3 排序）：与相邻分类交换 sort_order。
+
+    以当前展示顺序（sort_order, is_system DESC, id）为基准与相邻项换位，
+    避免只改一个数字导致顺序漂移；返回换位后的 sort_order。
+    """
+    cats = list_categories(conn, family_id)
+    idx = next((i for i, c in enumerate(cats) if c["id"] == cid), None)
+    if idx is None:
+        raise LedgerError("分类不存在")
+    j = idx + int(delta)
+    if j < 0 or j >= len(cats):
+        return cats[idx]["sort_order"]          # 已经在头/尾，什么都不做
+    a, b = cats[idx], cats[j]
+    oa, ob = a["sort_order"], b["sort_order"]
+    if oa == ob:                                # 同序号（老库常见）：拉开一点
+        ob = oa + (1 if delta > 0 else -1)
+    conn.execute("UPDATE categories SET sort_order=? WHERE id=?", (ob, a["id"]))
+    conn.execute("UPDATE categories SET sort_order=? WHERE id=?", (oa, b["id"]))
+    conn.commit()
+    return ob
+
+
+def check_duplicate(conn, date, amount_cents, category=None, kind=None, member=None,
+                    days=30, exclude_id=None):
+    """重复交易检测（rc.3）：同日期 + 同金额（+ 同分类/收支）在近 N 天内是否已有记录。
+
+    规则（对应 spec 验收）：
+      - 同一日期 + 同一金额 = 基本命中；分类相同 → 强命中（same_category=true）；
+      - 不同金额一律不报（按主键精确比金额，不做模糊）；
+      - 需要更宽的窗口时传 days。
+    返回 {"dup": bool, "matches": [...], "window_from": "...", "same_amount": ...}
+    """
+    fam_id = ensure_seed(conn)["family_id"]
+    amount_cents = int(amount_cents or 0)
+    if amount_cents <= 0 or not date:
+        return {"dup": False, "matches": []}
+    win_from = (datetime.date.fromisoformat(parse_date(date))
+                - datetime.timedelta(days=int(days))).isoformat()
+    where = ["t.family_id=?", "t.amount_cents=?", "t.date>=?", "t.date<=?"]
+    params = [fam_id, amount_cents, win_from, date]
+    if kind:
+        where.append("t.kind=?")
+        params.append(kind)
+    if member:
+        mid = _member_id_by_name(conn, fam_id, member)
+        if mid is not None:
+            where.append("t.member_id=?")
+            params.append(mid)
+    if exclude_id:
+        where.append("t.id!=?")
+        params.append(int(exclude_id))
+    sql = ("SELECT t.*, c.name AS category_name, m.name AS member_name"
+           " FROM transactions t"
+           " LEFT JOIN categories c ON c.id=t.category_id"
+           " LEFT JOIN members m ON m.id=t.member_id"
+           " WHERE " + " AND ".join(where) +
+           " ORDER BY t.date DESC, t.id DESC LIMIT 20")
+    matches = []
+    for r in conn.execute(sql, params).fetchall():
+        d = row_to_dict(r)
+        d["category"] = d.pop("category_name")
+        d["member"] = d.pop("member_name")
+        d["note"] = d.pop("remark")
+        d["same_category"] = bool(category) and d["category"] == category
+        matches.append(d)
+    # 分类也相同的排前面（更像"同一笔被记了两次"）
+    matches.sort(key=lambda m: (not m["same_category"],))
+    return {
+        "dup": bool(matches),
+        "matches": matches[:5],
+        "count": len(matches),
+        "window_from": win_from,
+        "window_to": date,
+        "best_is_same_category": bool(matches) and matches[0]["same_category"],
+    }
 
 
 def set_category_nature(conn, family_id, cid, nature):
@@ -782,6 +933,14 @@ def dashboard_data(conn, month_offset=0):
     prev_rows = list_entries(conn, from_=prev_start.isoformat(), to=prev_end, kind="expense")
     month_total = sum(row["amount_cents"] for row in month_rows)
     prev_total = sum(row["amount_cents"] for row in prev_rows)
+    # rc.3：概览三卡要「支出 / 收入 / 结余」，这里把收入与结余一并算好
+    month_income_rows = list_entries(conn, from_=m_start.isoformat(), to=m_end, kind="income")
+    month_income = sum(r["amount_cents"] for r in month_income_rows)
+    prev_income = sum(r["amount_cents"] for r in list_entries(
+        conn, from_=prev_start.isoformat(), to=prev_end, kind="income"))
+    income_change_pct = None
+    if prev_income > 0:
+        income_change_pct = round((month_income - prev_income) * 100.0 / prev_income, 1)
     change_pct = None
     if prev_total > 0:
         change_pct = round((month_total - prev_total) * 100.0 / prev_total, 1)
@@ -833,6 +992,12 @@ def dashboard_data(conn, month_offset=0):
     return {
         "month": m_start.isoformat()[:7],
         "month_total_cents": month_total,
+        "month_income_cents": month_income,
+        "month_balance_cents": month_income - month_total,
+        "prev_income_cents": prev_income,
+        "income_change_pct": income_change_pct,
+        "expense_count": len(month_rows),
+        "income_count": len(month_income_rows),
         "prev_total_cents": prev_total,
         "change_pct": change_pct,
         "count": len(month_rows),
@@ -993,6 +1158,25 @@ def cmd_categories(args, conn):
         n = set_category_nature(conn, fam_id, row["id"], args.nature)
         print("ok: {} 性质 -> {}（{}）".format(args.set_nature, NATURES[n], n))
         return
+    if args.set_style or args.icon or args.color or args.order is not None or args.move:
+        target = args.set_style or args.move
+        if not target:
+            raise LedgerError("--icon/--color/--order 需要搭配 --set-style 名称")
+        row = conn.execute("SELECT id FROM categories WHERE family_id=? AND name=? AND is_archived=0",
+                           (fam_id, target)).fetchone()
+        if row is None:
+            raise LedgerError("分类不存在：{}".format(target))
+        if args.move:
+            o = move_category(conn, fam_id, row["id"], 1 if args.move == "down" else -1)
+            print("ok: 「{}」已{}（sort_order={}）".format(target, "下移" if args.move == "down" else "上移", o))
+            return
+        update_category(conn, fam_id, row["id"], {
+            "icon": args.icon, "color": args.color, "sort_order": args.order,
+        })
+        print("ok: 「{}」样式已更新（icon={} color={} order={}）".format(
+            target, args.icon or "-", args.color or "-",
+            args.order if args.order is not None else "-"))
+        return
     if args.json:
         print(json.dumps(list_categories(conn, fam_id), ensure_ascii=False))
         return
@@ -1113,6 +1297,11 @@ def main():
     sp.add_argument("--add"); sp.add_argument("--rename"); sp.add_argument("--to")
     sp.add_argument("--delete"); sp.add_argument("--set-nature", metavar="名称", help="设置分类性质")
     sp.add_argument("--nature", metavar="固定|必要|非必要", help="性质（与 --set-nature 搭配）")
+    sp.add_argument("--set-style", metavar="名称", help="设置图标/配色/排序的目标分类（rc.3）")
+    sp.add_argument("--icon", help="图标 emoji（与 --set-style 搭配）")
+    sp.add_argument("--color", help="颜色 #RRGGBB（与 --set-style 搭配）")
+    sp.add_argument("--order", type=int, help="排序序号，越小越靠前（与 --set-style 搭配）")
+    sp.add_argument("--move", choices=["up", "down"], help="与相邻分类换位（rc.3 排序）")
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_categories)
     sp = sub.add_parser("members", help="家庭成员")

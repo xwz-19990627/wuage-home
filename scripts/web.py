@@ -365,6 +365,35 @@ class Handler(BaseHTTPRequestHandler):
                 conn.close()
             self._json(201, {"ok": True, "id": did})
             return
+        if path == "/api/funds/analysis":
+            # AI 持仓体检（2026-10-16）：读 fund_positions/fund_trades → 人话解读
+            try:
+                body = self._read_body()
+            except (ValueError, json.JSONDecodeError) as e:
+                self._error(400, "bad body: {}".format(e))
+                return
+            conn = L.connect()
+            try:
+                fam_id = L.ensure_seed(conn)["family_id"]
+                digest = L.fund_digest(conn, fam_id)
+                if not digest["positions"]:
+                    self._json(200, {"ok": False, "error": "还没有基金持仓，先在理财页添加或记一笔加减仓"})
+                    return
+                try:
+                    text = P.chat_text(
+                        L.FUND_ANALYSIS_SYSTEM,
+                        "持仓数据（JSON）：\n" + json.dumps(digest, ensure_ascii=False, indent=1),
+                        max_tokens=1200, session="wuage-finance")
+                except Exception as e:                          # noqa: BLE001
+                    self._error(502, "AI 分析失败：{}".format(e))
+                    return
+                if body.get("save"):
+                    L.add_memory(conn, fam_id, kind="digest", topic="fund-analysis",
+                                 content=text, importance="medium", source="panel")
+            finally:
+                conn.close()
+            self._json(200, {"ok": True, "analysis": text, "digest": digest})
+            return
         if path == "/api/funds":
             try:
                 body = self._read_body()

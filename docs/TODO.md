@@ -26,12 +26,20 @@
   Tab 架构拍板方案 A：**[概览][账单][＋][AI记账][理财]**，原「财务」页并入概览（净资产/资产/月度结算在概览顶部，
   重复的「本月结余」卡已删）。验收=隔离库 Playwright 33 项全通过（含真模型「午餐20」→填表→判重→入账全链路），
   服务器 selftest + 只读冒烟通过；归档 docs/archive/v0.2.0-rc.3-2026-10-16.md。
-- ⏳ 待办（本系列剩余）：理财「复权口径 + 数据源回退」与 AI 持仓分析（见下方"下一步"）。
+- ✅ **理财收尾（复权口径 + 数据源回退 + AI 持仓体检）已上线**（今日）：
+  回测可用 `price_mode`（基金 `adj` 复权/累计净值默认、`nav` 单位净值、`acc`；ETF `qfq`/`hfq`/`raw`），
+  结果回传口径与数据源；数据源回退 = 基金 pingzhongdata → fundf10、ETF 腾讯 → 东财。
+  实测 163402 十年定投：复权 **+6.80%** vs 单位净值 **−28.41%**（差 35.2 个百分点，这就是以前的口径坑）。
+  「AI 持仓体检」= `ledger.py funds --analyze` / `POST /api/funds/analysis` / 面板理财页按钮，
+  读记账库 fund_positions+fund_trades 出人话解读（含集中度/平台/浮亏规则提示）；服务器真模型端到端通过。
+- ⏳ 待办（本系列剩余）：预算模块（rc.4）、智能分析对话入口（走 DSH wuage-ledger 技能）、
+  周期记账；理财模块的"干净分红送配明细"（拿到后可把复权升级成真·再投资口径）。
 
 ## 当前状态（2026-09-07）
 - ✅ **记账成员简化**：「本人」= 残雪，系统只保留 残雪/蛙哥 两个角色；本人(member_id=1) 90 笔流水并入残雪，本人归档（备份 ledger-*-before-member-merge.db）。
 - ✅ **工具 #03「健康助手」已上线（首个可用版本）**：scripts/health.py + web/health.html + WUAGE_DATA/health/health.db + wuage-health 技能卡（回答健康问题先读该人全档，避免 AI 不了解病史）；本机 http://127.0.0.1:17626，网关 /home/health/（server.js 已打路由，需重启网关生效）。
-- 🔜 **理财=轻量**：不整包接 Vibe（2核2G 扛不住常驻）；在现有 scripts/finance.py 上补「复权口径 + 数据源回退」；Vibe 仅作 data/finance/vibe/ 按需 CLI 备用。（待做）
+- ✅ **理财=轻量**（2026-10-16 完成）：不整包接 Vibe（2核2G 扛不住常驻）；「复权口径 + 数据源回退」
+  已在 scripts/finance.py 落地；Vibe 仅作 data/finance/vibe/ 按需 CLI 备用。
 - ✅ **工具级「长时记忆」**：health / finance / ledger 各自新增 `memories` 表 + memo 工具（CLI/API），按域隔离；回答前先读该域记忆，偏好/目标由模型自行判断记录。技能卡 wuage-health / **wuage-finance（新增）** / wuage-ledger 均加入「先读记忆再作答 + 自动记」协议。
 
 ## 当前状态（2026-09-06）

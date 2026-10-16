@@ -14,10 +14,9 @@ wuage-home 的记账模块。数据在数据根 `$WUAGE_HOME/data/ledger.db`（�
 命令统一为：`export WUAGE_DATA="${WUAGE_DATA:-/root/wuage/data}" && python3 $REPO/scripts/ledger.py ...`
 
 > ⚠️ **每次执行前先确保 `WUAGE_DATA` 指向正式数据（`/root/wuage/data`）**。
-> 若该环境变量未设置，`ledger.py` 会默认落到仓库内 `data/`（即 /root/project/data），
-> 造成「面板看不到刚记的账 / 查账为空」的假象（此前已踩坑）。
-> 用 `${WUAGE_DATA:-/root/wuage/data}` 可兼顾：已设值（如测试用 /tmp/...）保持不变，
-> 未设则落到正式库。
+> `ledger.py` 的目录解析是三级：`WUAGE_DATA` → `WUAGE_HOME/data` → `/root/wuage/data`
+> （2026-08-23 起默认就指向数据根，**不会再落到仓库内 data/**）。
+> 用 `${WUAGE_DATA:-/root/wuage/data}` 可兼顾：已设值（如测试用 /tmp/...）保持不变，未设则落到正式库。
 
 ## 一句话记账流程
 
@@ -93,3 +92,17 @@ python3 $REPO/scripts/ledger.py memo --topic 规则
    - 异常信号：某类别笔数/金额激增、出现大额、"其他/待整理"条目；
    - 收尾一句建议或可做的事。
 3. 若本周无记录，直接说"这周还没有记账，来一句试试"。
+
+## 基金持仓体检（2026-10-16）
+
+记账库里也有家庭的真实基金持仓（`fund_positions` / `fund_trades`，面板「理财」tab 维护）。
+用户问"我们的基金赚了多少/该不该调仓"时：
+
+```bash
+python3 $REPO/scripts/ledger.py funds --json      # 结构化摘要（含占比/收益/平台分布/风险提示/最近加减仓）
+python3 $REPO/scripts/ledger.py funds --analyze   # 直接出人话解读（与面板「AI 持仓体检」同一条 prompt）
+```
+
+摘要由 `ledger.py::fund_digest` 生成，含规则化风险提示（单一基金 ≥30%、单一平台 ≥60%、浮亏 ≥10%）。
+解读口径：**只根据数据说话、不编造数字、不构成投资建议**。
+页面入口：记账面板 → 理财 → 「🤖 AI 持仓体检」（`POST /api/funds/analysis`，可 `save:true` 存进理财记忆）。

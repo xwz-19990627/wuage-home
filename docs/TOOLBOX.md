@@ -61,6 +61,10 @@ python3.11 scripts/apply-filebox-gateway.py && sudo systemctl restart dsh-gatewa
   - 自选/行情：场外基金按最新净值，ETF 按当日行情；免费源 = 天天基金/东方财富/腾讯。
   - 每日复盘：收盘后拉快照到 `daily_snapshots`，可生成人话复盘（LLM 可选）。
   - 回测：定投 DCA / 均线交叉 MA / RSI 区间，输出收益/年化/回撤/夏普/交易明细。
+    **价格口径可选**（2026-10-16）：场外基金默认**复权净值**（累计净值口径，分红计入收益；
+    单位净值在分红后会低估，实测 163402 十年定投差 35 个百分点），ETF 默认前复权，另可选后复权/不复权。
+    回测结果会显示本次用的口径与数据源。
+  - 数据源**回退**：基金 pingzhongdata → fundf10 历史净值；ETF/行情 腾讯 → 东财；主源故障自动切备源。
   - 收藏：策略收藏、指标/技术常识收藏。
   - 问答笔记：Web 问答框 → DeepSeek/OpenCode 回答 → 自动写入 notes 库，支持搜索。
 - 配置：FINANCE_HOST / FINANCE_PORT / FINANCE_DATA / WUAGE_PARSE_API / WUAGE_PARSE_MODEL。
@@ -86,6 +90,9 @@ python3.11 scripts/apply-toolbox-gateway.py && sudo systemctl restart dsh-gatewa
 
 - SQLite 单库 `data/finance/finance.db`；迁移 = 拷走 `data/finance` 目录即可。
 - 参考代码：Vibe-Trading 已放 `/root/wuage/reference/vibe-trading`，本期不运行、不接依赖。
+- ⚠️ **家庭真实基金持仓不在这里**：13 只基金在记账库 `ledger.db` 的 `fund_positions` / `fund_trades`，
+  由记账面板「理财」tab 维护，并新增「🤖 AI 持仓体检」（`ledger.py funds --analyze`，
+  面板 `POST /api/funds/analysis`）读它出人话解读。
 
 ## 03 · 健康助手（scripts/health.py）
 

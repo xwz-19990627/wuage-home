@@ -170,6 +170,41 @@ def parse_text(text, categories=None, members=None, model=None):
     raise RuntimeError("解析失败（重试后仍失败）: {}".format(last))
 
 
+def chat_text(system, user, model=None, max_tokens=1500, session="wuage-ledger", timeout=90):
+    """通用的一次性 LLM 调用（面板侧的 AI 功能复用，例如持仓体检）。
+
+    与 parse_text 共用凭据链与 x-opencode-session 会话头；返回纯文本。
+    """
+    key = api_key()
+    if not key:
+        raise RuntimeError("OPENCODE_GO_API_KEY 未配置（环境变量 / $WUAGE_HOME/.credentials.yaml / "
+                           "$DSH_HOME/.credentials.yaml 三处都没有）")
+    payload = {
+        "model": model or MODEL,
+        "messages": [
+            {"role": "system", "content": str(system)},
+            {"role": "user", "content": str(user)},
+        ],
+        "max_tokens": int(max_tokens),
+    }
+    req = urllib.request.Request(
+        API_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + key,
+            "User-Agent": USER_AGENT,
+            "x-opencode-session": session,
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise RuntimeError("模型服务 {}: {}".format(e.code, e.read().decode("utf-8")[:300]))
+    return (data["choices"][0]["message"]["content"] or "").strip()
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("用法: python3.11 scripts/parse.py 今天买菜花了86元")

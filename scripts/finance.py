@@ -462,30 +462,88 @@ def remove_watchlist(conn, wid):
 
 # ---------------------------------------------------------------- 数据源
 
-def fetch_fund_full(fund_code):
-    """从 fund.eastmoney.com/pingzhongdata 取全量净值序列。
+# ── 行情口径与数据源回退（2026-10-16）────────────────────────────────────
+# 复权口径：基金默认用**复权净值**（把分红按当时净值再投资，收益口径等价于累计净值），
+# 单位净值在分红/拆分后会凭空跳水，直接拿去回测会低估收益；ETF 默认前复权（qfq）。
+PRICE_MODES = {
+    "fund": {
+        "adj": "复权净值（累计净值口径：分红计入收益，不做再投资复利）",
+        "acc": "累计净值（与复权同源，分红累加）",
+        "nav": "单位净值（未复权，分红后会低估收益）",
+    },
+    "etf": {
+        "qfq": "前复权（分红/拆分回填到起点前）",
+        "hfq": "后复权（起点价保持原值）",
+        "raw": "不复权（原始成交价）",
+    },
+}
+DEFAULT_PRICE_MODE = {"fund": "adj", "etf": "qfq"}
+FUND_SOURCES = ("eastmoney_pingzhong", "eastmoney_lsjz")
+ETF_KLINE_SOURCES = ("tencent", "eastmoney")
 
-    返回：{'name': str, 'rows': [{'date': 'YYYY-MM-DD', 'nav': float, 'change_pct': float}]}
+
+def _norm_price_mode(asset_type, mode):
+    modes = PRICE_MODES.get(asset_type) or PRICE_MODES["etf"]
+    m = (mode or "").strip().lower()
+    if m in modes:
+        return m
+    return DEFAULT_PRICE_MODE.get(asset_type, "qfq")
+
+
+def _with_adj(rows):
+    """给基金序列补一列**复权净值** adj_nav = 累计净值口径（归一化到起点单位净值）。
+
+    即 adj_t = nav_t × (acc_t / nav_t) / (acc_0 / nav_0)，涨跌幅与累计净值一致：
+    分红被记进收益（不会像单位净值那样在除息日凭空跳水），但分红部分不计复利。
+
+    ⚠️ 为什么不做"逐日分红再投资"（2026-10-16 实测踩坑）：
+    东财 pingzhongdata 的 `Data_ACWorthTrend`（累计净值）在部分老基金上**逐日抖动**——
+    实测 163402 有近一半交易日 acc−nav 的差额在**下降**，而累计分红只增不减。
+    无论逐日相减还是取运行最大值，这些噪声都会被当成小额分红反复复利：
+    直接相减把 20 年序列放大到 1e29（回测收益 1.5e14%），取运行最大值也有 3345 倍。
+    在拿到干净的「分红送配明细表」之前，只用累计净值口径：单调、不炸、也是天天基金页面上的标准读法；
+    代价是分红不计复利（长期低估幅度通常个位数百分比，远小于单位净值的低估）。
     """
-    code = str(fund_code).strip()
-    if not code.isdigit():
-        raise ValueError("基金代码必须为数字")
+    if not rows:
+        return rows
+    base = None
+    for r in rows:
+        nav = float(r.get("nav") or 0)
+        acc = r.get("acc_nav")
+        acc = float(acc) if acc else 0.0
+        if nav <= 0 or acc <= 0:
+            r["adj_nav"] = nav
+            continue
+        ratio = acc / nav
+        if base is None:
+            base = ratio
+        r["adj_nav"] = round(nav * ratio / base, 6)
+    return rows
+
+
+def _fetch_pingzhong(code):
+    """主源：fund.eastmoney.com pingzhongdata（单位净值 + 累计净值）。"""
     url = "https://fund.eastmoney.com/pingzhongdata/{}.js".format(code)
-    text = _http_get(url, headers={
-        "User-Agent": USER_AGENT,
-        "Referer": "http://fund.eastmoney.com/",
-    })
+    text = _http_get(url, headers={"User-Agent": USER_AGENT,
+                                  "Referer": "http://fund.eastmoney.com/"})
     name = ""
     m = re.search(r'fS_name\s*=\s*"([^"]*)"', text)
     if m:
         name = m.group(1)
     m = re.search(r"Data_netWorthTrend\s*=\s*(\[.*?\])\s*;", text, re.S)
     if not m:
-        raise ValueError("未找到基金净值数据：" + code)
-    try:
-        arr = json.loads(m.group(1))
-    except Exception as e:
-        raise ValueError("基金净值数据解析失败：{}".format(e))
+        raise ValueError("未找到基金净值数据")
+    arr = json.loads(m.group(1))
+    acc_map = {}
+    m2 = re.search(r"Data_ACWorthTrend\s*=\s*(\[.*?\])\s*;", text, re.S)
+    if m2:
+        try:
+            for item in json.loads(m2.group(1)):
+                if isinstance(item, list) and len(item) >= 2:
+                    d = datetime.datetime.fromtimestamp(item[0] / 1000).date().isoformat()
+                    acc_map[d] = float(item[1])
+        except Exception:
+            acc_map = {}
     rows = []
     for item in arr:
         ts = item.get("x")
@@ -495,10 +553,81 @@ def fetch_fund_full(fund_code):
         rows.append({
             "date": d,
             "nav": float(item.get("y") or 0),
-            "change_pct": float(item.get("equityReturn") or 0) if item.get("equityReturn") is not None else None,
+            "acc_nav": acc_map.get(d),
+            "change_pct": (float(item.get("equityReturn"))
+                           if item.get("equityReturn") is not None else None),
         })
     rows.sort(key=lambda x: x["date"])
-    return {"name": name, "rows": rows}
+    if not rows:
+        raise ValueError("净值序列为空")
+    return name, rows
+
+
+def _fetch_lsjz(code, max_pages=25):
+    """备源 1：fundf10 历史净值接口（分页，含单位净值与累计净值）。"""
+    rows, name = [], ""
+    page = 1
+    got = 0
+    while page <= max_pages:
+        url = ("https://api.fund.eastmoney.com/f10/lsjz?fundCode={}&pageIndex={}"
+               "&pageSize=49").format(code, page)
+        data = _http_get_json(url, headers={
+            "User-Agent": USER_AGENT,
+            "Referer": "http://fundf10.eastmoney.com/jjjz_{}.html".format(code),
+        })
+        node = (data or {}).get("Data") or {}
+        lst = node.get("LSJZList") or []
+        if not name:
+            name = node.get("SHORTNAME") or node.get("FUNDNAME") or ""
+        if not lst:
+            break
+        for it in lst:
+            d = it.get("FSRQ")
+            if not d:
+                continue
+            try:
+                nav = float(it.get("DWJZ") or 0)
+            except (TypeError, ValueError):
+                continue
+            try:
+                acc = float(it.get("LJJZ")) if it.get("LJJZ") not in (None, "", "--") else None
+            except (TypeError, ValueError):
+                acc = None
+            try:
+                chg = float(it.get("JZZZL")) if it.get("JZZZL") not in (None, "", "--") else None
+            except (TypeError, ValueError):
+                chg = None
+            rows.append({"date": d, "nav": nav, "acc_nav": acc, "change_pct": chg})
+        if not lst:
+            break
+        got += len(lst)
+        if len(lst) < 2:            # 只有一条 → 到末尾了
+            break
+        page += 1
+    rows.sort(key=lambda x: x["date"])
+    if not rows:
+        raise ValueError("历史净值接口没有返回数据")
+    return name, rows
+
+
+def fetch_fund_full(fund_code):
+    """取基金全量净值序列（**带数据源回退**）。
+
+    返回 {'name', 'rows': [{date,nav,acc_nav,adj_nav,change_pct}], 'source', 'errors'}
+    主源 pingzhongdata（一次拿全）+ 备源 fundf10 分页历史净值。
+    """
+    code = str(fund_code).strip()
+    if not code.isdigit():
+        raise ValueError("基金代码必须为数字")
+    errors = []
+    for src, fn in (("eastmoney_pingzhong", _fetch_pingzhong),
+                    ("eastmoney_lsjz", _fetch_lsjz)):
+        try:
+            name, rows = fn(code)
+            return {"name": name, "rows": _with_adj(rows), "source": src, "errors": errors}
+        except Exception as e:                                  # noqa: BLE001
+            errors.append("{}: {}".format(src, e))
+    raise ValueError("基金数据源全部失败 —— " + "；".join(errors))
 
 
 def fetch_fund_latest(fund_code):
@@ -512,86 +641,172 @@ def fetch_fund_latest(fund_code):
         "asset_type": "fund",
         "trade_date": row["date"],
         "nav": row["nav"],
+        "acc_nav": row.get("acc_nav"),
+        "adj_nav": row.get("adj_nav"),
         "close": row["nav"],
         "pre_close": None,
         "change_pct": row["change_pct"],
-        "source": "eastmoney_fund",
+        "source": data["source"],
     }
 
 
-def fetch_etf_quote(symbol):
-    sym = normalize_symbol(symbol)
+def _quote_from_tencent(sym):
     url = "https://qt.gtimg.cn/q=" + sym
     text = _http_get(url, decode="gbk")
     m = re.search(r'v_' + re.escape(sym) + r'="([^"]+)"', text)
     if not m:
-        raise ValueError("未找到 ETF 行情：" + sym)
+        raise ValueError("未找到 ETF 行情")
     parts = m.group(1).split("~")
     if len(parts) < 40:
-        raise ValueError("行情字段不完整：" + sym)
-    name = parts[1]
-    price = float(parts[3] or 0)
-    pre_close = float(parts[4] or 0)
-    open_ = float(parts[5] or 0)
-    high = float(parts[33] or 0)
-    low = float(parts[34] or 0)
-    volume = float(parts[6] or 0)
-    amount = float(parts[37] or 0)
-    change_pct = float(parts[32] or 0) if parts[32] else None
+        raise ValueError("行情字段不完整")
     ts = parts[30]
-    trade_date = ts[:8]
-    trade_date = "{}-{}-{}".format(trade_date[:4], trade_date[4:6], trade_date[6:8])
+    trade_date = "{}-{}-{}".format(ts[:4], ts[4:6], ts[6:8])
     return {
-        "symbol": sym,
-        "name": name,
-        "asset_type": "etf",
-        "trade_date": trade_date,
-        "open": open_,
-        "high": high,
-        "low": low,
-        "close": price,
-        "pre_close": pre_close,
-        "volume": volume,
-        "amount": amount,
-        "change_pct": change_pct,
+        "symbol": sym, "name": parts[1], "asset_type": "etf", "trade_date": trade_date,
+        "open": float(parts[5] or 0), "high": float(parts[33] or 0), "low": float(parts[34] or 0),
+        "close": float(parts[3] or 0), "pre_close": float(parts[4] or 0),
+        "volume": float(parts[6] or 0), "amount": float(parts[37] or 0),
+        "change_pct": float(parts[32] or 0) if parts[32] else None,
         "source": "tencent",
     }
 
 
-def fetch_etf_kline(symbol, limit=1000, start=None, end=None):
+def _secid(sym):
+    """sh510300 → 1.510300；sz159915 → 0.159915（东财 secid 规则）。"""
+    s = sym.lower()
+    if s.startswith("sh"):
+        return "1." + s[2:]
+    if s.startswith("sz"):
+        return "0." + s[2:]
+    return ("1." if s.startswith(("5", "6", "9")) else "0.") + s
+
+
+def _quote_from_eastmoney(sym):
+    url = ("https://push2.eastmoney.com/api/qt/stock/get?secid={}"
+           "&fields=f43,f44,f45,f46,f47,f48,f57,f58,f60,f170").format(_secid(sym))
+    data = _http_get_json(url, headers={"User-Agent": USER_AGENT})
+    d = (data or {}).get("data") or {}
+    if not d:
+        raise ValueError("东财行情为空")
+    f = lambda k, div=100.0: (float(d[k]) / div if d.get(k) not in (None, "-") else 0.0)  # noqa: E731
+    return {
+        "symbol": sym, "name": d.get("f58") or "", "asset_type": "etf",
+        "trade_date": _today(),
+        "open": f("f46"), "high": f("f44"), "low": f("f45"),
+        "close": f("f43"), "pre_close": f("f60"),
+        "volume": float(d.get("f47") or 0), "amount": float(d.get("f48") or 0),
+        "change_pct": f("f170"), "source": "eastmoney",
+    }
+
+
+def fetch_etf_quote(symbol):
+    """ETF 行情：腾讯为主、东财兜底。"""
     sym = normalize_symbol(symbol)
+    errors = []
+    for src, fn in (("tencent", _quote_from_tencent), ("eastmoney", _quote_from_eastmoney)):
+        try:
+            return fn(sym)
+        except Exception as e:                                  # noqa: BLE001
+            errors.append("{}: {}".format(src, e))
+    raise ValueError("ETF 行情源全部失败 —— " + "；".join(errors))
+
+
+def _kline_from_tencent(sym, limit, start, end, price_mode):
+    suffix = {"qfq": "qfq", "hfq": "hfq", "raw": ""}[price_mode]
     if start and end:
-        param = "{},day,{},{},{},qfq".format(sym, start, end, limit)
+        param = "{},day,{},{},{},{}".format(sym, start, end, limit, suffix)
     else:
-        param = "{},day,,,{},qfq".format(sym, limit)
+        param = "{},day,,,{},{}".format(sym, limit, suffix)
     url = ("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param="
            + urllib.parse.quote(param))
     data = _http_get_json(url)
     node = (data.get("data") or {}).get(sym) or {}
-    arr = node.get("qfqday") or node.get("day") or []
+    arr = node.get(price_mode + "day") or node.get("day") or []
     rows = []
     for it in arr:
-        rows.append({
-            "date": it[0],
-            "open": float(it[1]),
-            "close": float(it[2]),
-            "high": float(it[3]),
-            "low": float(it[4]),
-            "volume": float(it[5]) if len(it) > 5 else 0,
-        })
+        rows.append({"date": it[0], "open": float(it[1]), "close": float(it[2]),
+                     "high": float(it[3]), "low": float(it[4]),
+                     "volume": float(it[5]) if len(it) > 5 else 0})
+    if not rows:
+        raise ValueError("腾讯 K 线为空")
     rows.sort(key=lambda x: x["date"])
     return rows
 
 
-def load_series(asset_type, symbol, start_date=None, end_date=None):
-    """返回统一的 [{date, price}] 序列，供快照与回测使用。"""
+def _kline_from_eastmoney(sym, limit, start, end, price_mode):
+    fqt = {"raw": 0, "qfq": 1, "hfq": 2}[price_mode]
+    beg = (start or "1990-01-01").replace("-", "")
+    fin = (end or "2050-01-01").replace("-", "")
+    url = ("https://push2his.eastmoney.com/api/qt/stock/kline/get?secid={}"
+           "&fields1=f1,f2,f3,f4,f5,f6"
+           "&fields2=f51,f52,f53,f54,f55,f56,f57&klt=101&fqt={}&beg={}&end={}"
+           "&lmt={}").format(_secid(sym), fqt, beg, fin, limit)
+    data = _http_get_json(url, headers={"User-Agent": USER_AGENT})
+    lines = ((data or {}).get("data") or {}).get("klines") or []
+    rows = []
+    for line in lines:
+        p = line.split(",")
+        if len(p) < 6:
+            continue
+        rows.append({"date": p[0], "open": float(p[1]), "close": float(p[2]),
+                     "high": float(p[3]), "low": float(p[4]), "volume": float(p[5])})
+    if not rows:
+        raise ValueError("东财 K 线为空")
+    rows.sort(key=lambda x: x["date"])
+    return rows
+
+
+def fetch_etf_kline(symbol, limit=1000, start=None, end=None, price_mode="qfq"):
+    """ETF 日 K：腾讯为主、东财兜底；price_mode = qfq / hfq / raw。"""
+    sym = normalize_symbol(symbol)
+    mode = _norm_price_mode("etf", price_mode)
+    errors = []
+    for src, fn in (("tencent", _kline_from_tencent), ("eastmoney", _kline_from_eastmoney)):
+        try:
+            return fn(sym, limit, start, end, mode)
+        except Exception as e:                                  # noqa: BLE001
+            errors.append("{}: {}".format(src, e))
+    raise ValueError("ETF K 线源全部失败 —— " + "；".join(errors))
+
+
+def load_series_ex(asset_type, symbol, start_date=None, end_date=None, price_mode=None):
+    """统一取价序列（带口径与来源信息）。
+
+    返回 {'rows': [{date, price}], 'source', 'price_mode', 'price_note'}
+    - fund：price_mode = adj（默认，复权净值）/ acc（累计净值）/ nav（单位净值）
+    - etf ：price_mode = qfq（默认，前复权）/ hfq / raw
+    """
     sym = normalize_symbol(symbol, asset_type)
-    if asset_type == "etf":
-        rows = fetch_etf_kline(sym, start=start_date, end=end_date)
-        return [{"date": r["date"], "price": r["close"]} for r in rows]
-    asset_type = "fund"
-    data = fetch_fund_full(sym)
-    return [{"date": r["date"], "price": r["nav"]} for r in data["rows"]]
+    atype = "fund" if str(asset_type or "").lower() == "fund" else "etf"
+    mode = _norm_price_mode(atype, price_mode)
+    if atype == "etf":
+        rows = fetch_etf_kline(sym, start=start_date, end=end_date, price_mode=mode)
+        key = "close"
+    else:
+        data = fetch_fund_full(sym)
+        rows = data["rows"]
+        src_tag = data["source"]
+        key = {"adj": "adj_nav", "acc": "acc_nav", "nav": "nav"}[mode]
+        if mode == "acc" and any(r.get("acc_nav") is None for r in rows):
+            # 备源没给累计净值时退回复权净值（口径接近，收益不低估）
+            key = "adj_nav"
+            mode = "adj"
+        rows = list(rows)
+    out = [{"date": r["date"], "price": float(r.get(key) or 0)} for r in rows]
+    out = [r for r in out if r["price"] > 0]
+    if atype == "etf":
+        src_tag = "tencent/eastmoney"
+    return {
+        "rows": out,
+        "source": src_tag,
+        "price_mode": mode,
+        "price_note": PRICE_MODES[atype][mode],
+    }
+
+
+def load_series(asset_type, symbol, start_date=None, end_date=None, price_mode=None):
+    """返回统一的 [{date, price}] 序列，供快照与回测使用。"""
+    return load_series_ex(asset_type, symbol, start_date, end_date, price_mode)["rows"]
 
 
 def refresh_quotes(conn, symbols=None):
@@ -733,8 +948,9 @@ def run_backtest(payload):
     if start >= end:
         raise ValueError("start_date 必须早于 end_date")
     fee_rate = float(payload.get("fee_rate") or 0.0015)
-    series = load_series(asset_type, symbol, start_date=start.isoformat(), end_date=end.isoformat())
-    series = [s for s in series if start <= datetime.date.fromisoformat(s["date"]) <= end]
+    meta = load_series_ex(asset_type, symbol, start.isoformat(), end.isoformat(),
+                          payload.get("price_mode"))
+    series = [s for s in meta["rows"] if start <= datetime.date.fromisoformat(s["date"]) <= end]
     if len(series) < 30:
         raise ValueError("该区间数据不足（需要至少 30 个交易日/净值点）")
     dates = [s["date"] for s in series]
@@ -749,6 +965,9 @@ def run_backtest(payload):
     result["symbol"] = symbol
     result["asset_type"] = asset_type
     result["strategy"] = strategy
+    result["price_mode"] = meta["price_mode"]
+    result["price_note"] = meta["price_note"]
+    result["data_source"] = meta["source"]
     result["start_date"] = dates[0]
     result["end_date"] = dates[-1]
     return result

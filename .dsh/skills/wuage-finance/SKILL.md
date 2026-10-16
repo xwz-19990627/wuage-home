@@ -46,6 +46,34 @@ python3 $REPO/scripts/finance.py --memo-add --memo-kind digest --memo-topic 决�
 - 回测：`POST /api/backtest`（自研、确定性、真实净值数据，不做 LLM 计算）。
 - 学习问答：`POST /api/ask`（自动记进 notes）。
 
+## 价格口径与数据源（2026-10-16）
+
+**回测/比较收益一律用复权口径**，否则分红除息会被当成亏损：
+- 场外基金：`price_mode=adj`（默认）= **复权净值**（累计净值口径，分红计入收益）；
+  `nav` = 单位净值（不复权；分红多的老基金能差出几十个百分点，例如 163402 十年定投
+  `adj` +6.80% vs `nav` −28.41%）；`acc` 与 `adj` 同源。
+  为什么不搞"逐日分红再投资"：东财累计净值序列在部分老基金上逐日抖动，逐日算分红会把噪声逐日
+  复利放大（实测把 20 年序列放到 1e29），详见 `finance.py::_with_adj` 的说明。
+- 场内 ETF：`price_mode=qfq`（默认前复权）/ `hfq`（后复权）/ `raw`（不复权）。
+- 数据源回退：基金 `pingzhongdata` → `fundf10 历史净值`；ETF 行情 `腾讯` → `东财`。
+  结果里的 `data_source` / `price_note` 会说明这次走的哪条链路。
+
+## 家庭基金持仓体检（读记账库 fund_positions，2026-10-16）
+
+记账库（`$WUAGE_DATA/ledger.db`）里存着家庭的**真实基金持仓**（fund_positions / fund_trades），
+回答"我们的基金赚了吗/该不该调仓"这类问题优先读它，而不是只看本模块流水：
+
+```bash
+python3 $REPO/scripts/ledger.py funds --json        # 结构化摘要，喂给自己看
+python3 $REPO/scripts/ledger.py funds --analyze     # 直接出人话解读（页面「AI 持仓体检」同链路）
+curl -s -X POST http://127.0.0.1:17623/api/funds/analysis \
+     -H 'Content-Type: application/json' -d '{"save":true}'
+```
+
+摘要含：每只基金市值/成本/持有收益率/占比、平台与类型分布、最近加减仓、近 90 天买卖合计、
+以及**规则化风险提示**（单一基金 ≥30%、单一平台 ≥60%、浮亏 ≥10% 的点名）。
+解读口径：只根据数据说话、不编造数字、不构成投资建议。
+
 ## 回答风格
 - 开头点明“参考了你们的理财记录（偏好稳健、以基金为主、当前持仓 XX）”。
 - 结合持仓/记忆给分析；涉及买卖给出市场信息与风险，不直接下“买卖指令”。

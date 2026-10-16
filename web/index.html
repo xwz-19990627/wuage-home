@@ -436,6 +436,15 @@
         <button class="ghost" id="btn-fund-refresh" style="flex:1">刷新</button>
       </div>
     </div>
+    <div class="card" id="fund-ai-card">
+      <h2>🤖 AI 持仓体检 <span class="ver">全部持仓 + 加减仓 → 人话解读</span></h2>
+      <div class="hint">把持仓明细和最近加减仓交给模型，讲清「钱在哪、赚亏来自哪、风险点、可以考虑什么」。只是解读，不是投资建议。</div>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="btn-fund-ai" style="flex:2">开始体检</button>
+        <button class="ghost" id="btn-fund-ai-save" style="flex:1">存进记忆</button>
+      </div>
+      <div id="fund-ai-out" style="margin-top:10px;white-space:pre-wrap;line-height:1.65;font-size:14px"></div>
+    </div>
     <div id="fund-edit" class="card" style="display:none">
       <h2 id="fund-edit-title">基金</h2>
       <div class="row"><input id="fe-name" placeholder="基金名称" style="flex:1"></div>
@@ -1464,11 +1473,31 @@
       showToast("已删除","ok");loadFunds();loadNetworth();
     }).catch(function(){showToast("删除失败","err");});
   }
+  function runFundAI(save){
+    var out=$("fund-ai-out");
+    if(!out)return;
+    out.textContent="🤔 模型正在读你的持仓和加减仓记录…";
+    fetch("api/funds/analysis",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({save:!!save})})
+      .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+      .then(function(res){
+        var d=res.d||{};
+        if(!res.ok||!d.ok){out.textContent="分析失败："+(d.error||("HTTP "+res.ok));return;}
+        out.textContent=d.analysis;
+        var g=d.digest||{};
+        var flags=(g.risk_flags||[]).length?(" ⚠️ "+g.risk_flags.join("；")):"";
+        showToast("体检完成："+g.position_count+" 只 · 市值 "+(g.total_market_yuan||0)+" 元","ok");
+        if(save)showToast("已存进理财记忆","ok");
+        if(flags)out.textContent+="\n\n— 规则提示 —"+flags;
+      }).catch(function(e){out.textContent="分析失败："+e;});
+  }
   function initFundUI(){
     $("btn-fund-add").onclick=function(){openFundEdit(null);};
     $("btn-fund-refresh").onclick=loadFunds;
     $("fe-save").onclick=saveFund;
     $("fe-cancel").onclick=function(){$("fund-edit").style.display="none";};
+    if($("btn-fund-ai"))$("btn-fund-ai").onclick=function(){runFundAI(false);};
+    if($("btn-fund-ai-save"))$("btn-fund-ai-save").onclick=function(){runFundAI(true);};
   }
   function loadLicai(){
     initPnlUI();

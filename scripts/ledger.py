@@ -1316,6 +1316,11 @@ def main():
     sp.add_argument("--member"); sp.add_argument("--kind", choices=sorted(KINDS))
     sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_summary)
+    sp = sub.add_parser("funds", help="基金持仓体检：摘要 / AI 人话解读（2026-10-16）")
+    sp.add_argument("--digest", action="store_true", help="只输出结构化摘要")
+    sp.add_argument("--analyze", action="store_true", help="调模型出人话解读")
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(fn=cmd_funds)
     sp = sub.add_parser("weekly", help="本周汇总"); sp.add_argument("--json", action="store_true")
     sp.set_defaults(fn=cmd_weekly)
     sp = sub.add_parser("memo", help="长时记忆：家庭规则/偏好/摘要（模型自行判断）")
@@ -1340,8 +1345,7 @@ def main():
         conn.close()
 
 
-if __name__ == "__main__":
-    main()# ═════════════════ 家庭总账 rc.5（2026-09-05）════════════════════════
+# ═════════════════ 家庭总账 rc.5（2026-09-05）════════════════════════
 
 # 账户种子：按存款来源建账户（用户拍板：车不记；黄金=固定资产 120g；自媒体暂不计）
 NETWORTH_ACCOUNTS = [
@@ -1750,6 +1754,138 @@ def delete_position(conn, family_id, pid):
     return pid
 
 
+def fund_digest(conn, family_id=None, trade_limit=40):
+    """基金持仓体检摘要（2026-10-16）。
+
+    给「AI 持仓分析」和 DSH 会话共用的紧凑结构：持仓明细（含占比/收益率）+ 平台/类型分布
+    + 最近加减仓流水 + 汇总。数字全部换成**元**并保留两位，方便模型直接念人话。
+    """
+    seed = ensure_seed(conn)
+    fam_id = family_id or seed["family_id"]
+    data = list_positions(conn, fam_id)
+    positions = data["positions"]
+    total_market = data["total_market_cents"] or 0
+    total_cost = data["total_cost_cents"] or 0
+    rows = []
+    for p in positions:
+        cost, market = p["cost_cents"], p["market_cents"]
+        rows.append({
+            "name": p["name"], "platform": p["platform"] or "未标平台",
+            "kind": p["kind_name"], "code": p["code"] or "",
+            "cost_yuan": round(cost / 100.0, 2), "market_yuan": round(market / 100.0, 2),
+            "holding_pnl_yuan": round(p["holding_pnl_cents"] / 100.0, 2),
+            "total_pnl_yuan": round(p["total_pnl_cents"] / 100.0, 2),
+            "holding_pnl_pct": (round((market - cost) * 100.0 / cost, 2) if cost else None),
+            "weight_pct": (round(market * 100.0 / total_market, 1) if total_market else None),
+            "note": p["note"] or "", "updated_at": p["updated_at"],
+        })
+    rows.sort(key=lambda r: -(r["market_yuan"] or 0))
+
+    def _dist(key):
+        out = {}
+        for r in rows:
+            k = r[key] or "未标"
+            out[k] = round(out.get(k, 0) + (r["market_yuan"] or 0), 2)
+        return dict(sorted(out.items(), key=lambda kv: -kv[1]))
+
+    trades = []
+    for t in conn.execute(
+            "SELECT t.*, p.name AS fund_name FROM fund_trades t"
+            " LEFT JOIN fund_positions p ON p.id=t.position_id"
+            " WHERE t.family_id=? ORDER BY t.date DESC, t.id DESC LIMIT ?",
+            (fam_id, int(trade_limit))).fetchall():
+        d = row_to_dict(t)
+        trades.append({
+            "date": d["date"], "fund": d.get("fund_name") or "",
+            "action": "加仓" if d["action"] == "buy" else "减仓",
+            "amount_yuan": round(d["amount_cents"] / 100.0, 2),
+            "shares": d.get("shares"), "note": d.get("note") or "",
+        })
+    # 近 90 天加减仓合计（看"是不是在追涨/割肉"）
+    cutoff = (datetime.date.today() - datetime.timedelta(days=90)).isoformat()
+    recent_buy = recent_sell = 0
+    for t in trades:
+        if t["date"] >= cutoff:
+            if t["action"] == "加仓":
+                recent_buy += t["amount_yuan"]
+            else:
+                recent_sell += t["amount_yuan"]
+    top_weight = rows[0]["weight_pct"] if rows else None
+    risk_flags = []
+    if top_weight is not None and top_weight >= 30:
+        risk_flags.append("单一基金占比 {:.1f}%（超过 30%，集中度偏高）".format(top_weight))
+    plat = _dist("platform")
+    if plat and total_market:
+        top_plat, top_plat_yuan = list(plat.items())[0]
+        top_plat_pct = round(top_plat_yuan * 100.0 / (total_market / 100.0), 1)
+        if top_plat_pct >= 60 and len(plat) > 1:
+            risk_flags.append("{} 平台占了 {:.0f}%（平台集中，注意单一 App/渠道风险）".format(
+                top_plat, top_plat_pct))
+    losers = [r["name"] for r in rows if (r["holding_pnl_pct"] or 0) <= -10]
+    if losers:
+        risk_flags.append("浮亏超过 10% 的有 {} 只：{}".format(len(losers), "、".join(losers[:5])))
+    return {
+        "date": today(),
+        "position_count": len(rows),
+        "total_market_yuan": round(total_market / 100.0, 2),
+        "total_cost_yuan": round(total_cost / 100.0, 2),
+        "total_holding_pnl_yuan": round((total_market - total_cost) / 100.0, 2),
+        "total_holding_pnl_pct": (round((total_market - total_cost) * 100.0 / total_cost, 2)
+                                  if total_cost else None),
+        "total_realized_pnl_yuan": round(data["total_pnl_cents"] / 100.0, 2),
+        "by_platform_yuan": plat,
+        "by_kind_yuan": _dist("kind"),
+        "positions": rows,
+        "recent_trades": trades[:20],
+        "last90d_buy_yuan": round(recent_buy, 2),
+        "last90d_sell_yuan": round(recent_sell, 2),
+        "risk_flags": risk_flags,
+    }
+
+
+FUND_ANALYSIS_SYSTEM = (
+    "你是这个家庭的理财助手，服务的是普通上班族，不是专业投资者。"
+    "只根据我给的数据说话，**不要编造任何数字**，数据里没有的就说不知道。"
+    "语气像家里人聊天：中文、口语、短句、不用术语堆砌。"
+    "输出用这几段（每段 2-4 句，直接给内容不要加导语）：\n"
+    "① 现在什么情况（总市值、总收益、几只、钱主要在哪）\n"
+    "② 赚亏主要来自哪儿（点名具体基金和大致幅度）\n"
+    "③ 风险点（集中度、浮亏大的、追涨杀跌迹象）\n"
+    "④ 接下来可以考虑的两三件事（明确说明这不是投资建议，决定权在他们）\n"
+    "不要输出 markdown 表格，不要用 ## 标题，最多用 ①②③④ 开头。总长度 400 字以内。"
+)
+
+
+def cmd_funds(args, conn):
+    fam_id = ensure_seed(conn)["family_id"]
+    digest = fund_digest(conn, fam_id)
+    if args.analyze:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import parse as P                                              # noqa: PLC0415
+        text = P.chat_text(FUND_ANALYSIS_SYSTEM,
+                           "持仓数据（JSON）：\n" + json.dumps(digest, ensure_ascii=False, indent=1),
+                           max_tokens=1200, session="wuage-finance")
+        if args.json:
+            print(json.dumps({"ok": True, "analysis": text, "digest": digest}, ensure_ascii=False))
+        else:
+            print(text)
+        return
+    if args.json:
+        print(json.dumps(digest, ensure_ascii=False))
+        return
+    print("持仓 {} 只 · 市值 {} 元 · 成本 {} 元 · 持有收益 {} 元（{}）".format(
+        digest["position_count"], digest["total_market_yuan"], digest["total_cost_yuan"],
+        digest["total_holding_pnl_yuan"], digest["total_holding_pnl_pct"]))
+    for r in digest["positions"]:
+        print("  {:<16} {:>10.2f} 元  {:>5.1f}%  收益 {:>8.2f} ({})".format(
+            r["name"][:16], r["market_yuan"], r["weight_pct"] or 0,
+            r["holding_pnl_yuan"], r["holding_pnl_pct"]))
+    if digest["risk_flags"]:
+        print("风险提示：")
+        for f in digest["risk_flags"]:
+            print("  ⚠️ " + f)
+
+
 def add_trade(conn, family_id, pid, action, date, amount_cents, shares=None,
               fee_cents=0, note="", holding_pnl_delta=None, market_cents=None):
     """记录一次加/减仓，并同步更新持仓的成本与市值。
@@ -1789,3 +1925,9 @@ def add_trade(conn, family_id, pid, action, date, amount_cents, shares=None,
     conn.commit()
     return {"trade_id": cur.lastrowid, "cost_cents": new_cost,
             "market_cents": new_market, "holding_pnl_cents": new_holding}
+
+
+if __name__ == "__main__":
+    # 入口放在文件最末：本文件后半段（账户/基金模块）定义在 main 之后，
+    # 提前调用 main() 会 NameError: cmd_funds（2026-10-16 修）
+    main()
